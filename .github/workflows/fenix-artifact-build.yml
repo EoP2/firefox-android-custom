@@ -1,0 +1,115 @@
+# ------------------------------------------------------------
+# Firefox for Android【正式版】—— artifact（预编译产物）模式构建，不含签名
+#
+# 放到你自己【公开】仓库的 .github/workflows/ 下。仓库结构：
+#   patches/*.patch     会被自动应用（附带 0001-compact-address-bar.patch）
+#   optional/*.patch    不会被应用；想启用就挪到 patches/ 里
+#
+# 产物是【未签名】的 release APK：从 Actions 页面下载后，在本地自己签名。
+#
+# 说明：
+#  * 参数已对照 159.0 的源码核对过（bootstrap 取值、mozconfig、产物查找逻辑），
+#    补丁也在该 tag 上做过 `git apply --check`，但整条流水线没有真正跑过。
+#  * 公开仓库的标准 runner 是 4 核 / 16 GB，私有仓库只有 2 核 / 8 GB。
+#  * artifact 模式只能改 Java/Kotlin/资源/字符串/JS/CSS/FTL，不能改 C/C++/Rust。
+#  * 下面各 action 的版本号请换成当前最新的大版本。
+# ------------------------------------------------------------
+name: Build Firefox for Android (release, unsigned)
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: "上游正式版 tag；出新版本后改成新的，例如 FIREFOX_160_0_RELEASE"
+        default: "FIREFOX_159_0_RELEASE"
+
+env:
+  UPSTREAM: https://github.com/mozilla-firefox/firefox
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: 取你自己仓库（patches/ 等）
+        uses: actions/checkout@v4
+        with:
+          path: mine
+
+      - name: 腾磁盘（标准 runner 空间很紧）
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/share/swift \
+            /opt/hostedtoolcache/CodeQL || true
+          df -h /
+
+      - name: 浅克隆上游源码（只取该 tag 的这一个提交）
+        env:
+          REF: ${{ inputs.upstream_ref || 'FIREFOX_159_0_RELEASE' }}
+        run: |
+          mkdir firefox && cd firefox
+          git init -q
+          git remote add origin "$UPSTREAM"
+          git fetch --depth 1 origin "$REF"
+          git checkout -q FETCH_HEAD
+          echo "Firefox 版本: $(cat browser/config/version.txt)"
+          git log -1 --format='%H %s'
+          # 把预编译产物的查找固定到这个提交：Mozilla 没为它编过就直接报错，
+          # 而不是悄悄拿一个不匹配的版本凑合（源码与产物不一致会出难查的问题）
+          echo "MOZ_ARTIFACT_REVISION=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: 应用补丁
+        working-directory: firefox
+        run: |
+          shopt -s nullglob
+          patches=("$GITHUB_WORKSPACE"/mine/patches/*.patch)
+          echo "共 ${#patches[@]} 个补丁"
+          for p in "${patches[@]}"; do
+            echo "apply $p"
+            git apply --whitespace=nowarn "$p"
+          done
+
+      - name: bootstrap（Artifact Mode，不装 C++ 编译工具链）
+        working-directory: firefox
+        run: ./mach --no-interactive bootstrap --application-choice=mobile_android_artifact_mode
+
+      - name: 写 mozconfig
+        working-directory: firefox
+        run: |
+          # 目标架构：多数手机用 aarch64；其它架构请改 --target
+          cat > mozconfig <<'EOF'
+          ac_add_options --enable-project=mobile/android
+          ac_add_options --target=aarch64-linux-android
+          ac_add_options --enable-artifact-builds
+          mk_add_options MOZ_OBJDIR=@TOPSRCDIR@/objdir-artifact
+          EOF
+          echo "MOZCONFIG=$PWD/mozconfig" >> "$GITHUB_ENV"
+
+      - name: mach build（下载预编译产物并组装 GeckoView）
+        working-directory: firefox
+        run: ./mach build
+
+      - name: 编译 Fenix（Release，未签名）
+        working-directory: firefox
+        run: |
+          # 内存不够时可在末尾加 -PdisableOptimization（关闭 R8 优化，APK 会更大）
+          ./mach gradle fenix:assembleRelease
+
+      - name: 收集 APK
+        run: |
+          set -e
+          mkdir -p out
+          find firefox/objdir-artifact/gradle/build/mobile/android/fenix \
+            -path '*/outputs/apk/*' -name '*.apk' -exec cp -v {} out/ \;
+          ls -lh out/*.apk
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-android-release-unsigned
+          path: out/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+# 跑通之后可以再加：
+#  * actions/cache 缓存 ~/.gradle 和 ~/.mozbuild，加快后续构建
+#  * 出新版本时自动提醒/触发（例如定时检查最新的 FIREFOX_*_RELEASE tag）
