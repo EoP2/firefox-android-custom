@@ -1,0 +1,10 @@
+# 构建产物与签名材料——千万不要提交
+*.apk
+*.aab
+*.jks
+*.keystore
+*.p12
+out/
+firefox/
+mine/
+objdir*/
