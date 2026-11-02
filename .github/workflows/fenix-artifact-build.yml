@@ -2,17 +2,22 @@
 # Firefox for Android【正式版】—— artifact（预编译产物）模式构建，不含签名
 #
 # 放到你自己【公开】仓库的 .github/workflows/ 下。仓库结构：
-#   patches/*.patch     会被自动应用（附带 0001-compact-address-bar.patch）
+#   patches/*.patch     会被自动应用（默认：0001 地址栏旧版样式、0002/0003 主菜单去掉分享·账户·反馈网站问题·VPN、
+#                       0004 设置里的扩展页去掉“推荐”）
 #   optional/*.patch    不会被应用；想启用就挪到 patches/ 里
 #
-# 产物是【未签名】的 release APK：从 Actions 页面下载后，在本地自己签名。
+# 产物是【未签名】的 release APK（只有 arm64-v8a 一个），且不打成 zip：
+# 构建完成后，在运行页面底部 Artifacts 里直接点 APK 文件名即可下载，然后在本地自己签名。
 #
 # 说明：
 #  * 参数已对照 159.0 的源码核对过（bootstrap 取值、mozconfig、产物查找逻辑），
-#    补丁也在该 tag 上做过 `git apply --check`，但整条流水线没有真正跑过。
+#    补丁也在该 tag 上做过 `git apply --check` 和 Kotlin 语法检查，但整条流水线没有真正跑过，
+#    补丁也没有真正编译过。
 #  * 公开仓库的标准 runner 是 4 核 / 16 GB，私有仓库只有 2 核 / 8 GB。
 #  * artifact 模式只能改 Java/Kotlin/资源/字符串/JS/CSS/FTL，不能改 C/C++/Rust。
-#  * 下面各 action 的版本号请换成当前最新的大版本。
+#  * 本构建把所有 Kotlin 警告当作错误（上游约定），写补丁时要注意，详见 README。
+#  * actions/checkout 的版本号请换成当前最新的大版本；
+#    upload-artifact 需要 v7 及以上才支持 `archive: false`。
 # ------------------------------------------------------------
 name: Build Firefox for Android (release, unsigned)
 
@@ -75,7 +80,7 @@ jobs:
       - name: 写 mozconfig
         working-directory: firefox
         run: |
-          # 目标架构：多数手机用 aarch64；其它架构请改 --target
+          # 目标架构：多数手机用 aarch64；其它架构请改 --target，并同步改下面 Gradle 步骤
           cat > mozconfig <<'EOF'
           ac_add_options --enable-project=mobile/android
           ac_add_options --target=aarch64-linux-android
@@ -88,25 +93,37 @@ jobs:
         working-directory: firefox
         run: ./mach build
 
-      - name: 编译 Fenix（Release，未签名）
+      - name: 编译 Fenix（Release，未签名，仅 arm64）
         working-directory: firefox
         run: |
-          # 内存不够时可在末尾加 -PdisableOptimization（关闭 R8 优化，APK 会更大）
-          ./mach gradle fenix:assembleRelease
+          # -PbenchmarkTest 在 Fenix 的 build.gradle 里只有一个作用：把 ABI 拆分限制为 arm64-v8a。
+          # 不加的话会同时生成 armeabi-v7a / arm64-v8a / x86_64 三个 APK，而预编译产物只有 arm64，
+          # 另外两个没法用，还会多花时间，也没法用“一次只能传一个文件”的方式单独上传。
+          # 内存不够时可再加 -PdisableOptimization（关闭 R8 优化，APK 会变大）。
+          ./mach gradle fenix:assembleRelease -PbenchmarkTest
 
-      - name: 收集 APK
+      - name: 定位 APK（必须恰好 1 个）
+        id: apk
         run: |
           set -e
+          mapfile -t apks < <(find firefox/objdir-artifact/gradle/build/mobile/android/fenix \
+            -path '*/outputs/apk/*' -name '*.apk')
+          echo "找到 ${#apks[@]} 个 APK:"
+          printf '  %s\n' "${apks[@]}"
+          if [ "${#apks[@]}" -ne 1 ]; then
+            echo "::error::期望恰好 1 个 APK，实际 ${#apks[@]} 个，请检查上一步 Gradle 的输出"
+            exit 1
+          fi
           mkdir -p out
-          find firefox/objdir-artifact/gradle/build/mobile/android/fenix \
-            -path '*/outputs/apk/*' -name '*.apk' -exec cp -v {} out/ \;
-          ls -lh out/*.apk
+          cp -v "${apks[0]}" out/
+          echo "path=out/$(basename "${apks[0]}")" >> "$GITHUB_OUTPUT"
 
-      - name: 上传 APK
-        uses: actions/upload-artifact@v4
+      - name: 上传 APK（不打包成 zip）
+        uses: actions/upload-artifact@v7
         with:
-          name: firefox-android-release-unsigned
-          path: out/*.apk
+          # archive: false 时一次只能传 1 个文件，artifact 的名字就是文件名（name 参数会被忽略）
+          path: ${{ steps.apk.outputs.path }}
+          archive: false
           if-no-files-found: error
           retention-days: 14
 
