@@ -16,6 +16,8 @@
 #  * 公开仓库的标准 runner 是 4 核 / 16 GB，私有仓库只有 2 核 / 8 GB。
 #  * artifact 模式只能改 Java/Kotlin/资源/字符串/JS/CSS/FTL，不能改 C/C++/Rust。
 #  * 本构建把所有 Kotlin 警告当作错误（上游约定），写补丁时要注意，详见 README。
+#  * 带缓存：~/.gradle（依赖）和 ~/.mozbuild（Android SDK 等）。第一次运行不会变快，从第二次起才有收益；
+#    缓存坏了或想作废时，到仓库的 Actions → Caches 页面删除，或把下面 key 里的 gradle- / mozbuild- 前缀改个名。
 #  * actions/checkout 的版本号请换成当前最新的大版本；
 #    upload-artifact 需要 v7 及以上才支持 `archive: false`。
 # ------------------------------------------------------------
@@ -62,6 +64,28 @@ jobs:
           # 而不是悄悄拿一个不匹配的版本凑合（源码与产物不一致会出难查的问题）
           echo "MOZ_ARTIFACT_REVISION=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
+      - name: 恢复缓存（Android SDK 等，~/.mozbuild）
+        id: cache-mozbuild
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.mozbuild
+          # SDK 版本清单变了才会换 key；换 key 时先用最近一份旧缓存垫底，bootstrap 会补装差异
+          key: mozbuild-${{ runner.os }}-${{ hashFiles('firefox/python/mozboot/mozboot/android*.txt', 'firefox/python/mozboot/mozboot/android.py') }}
+          restore-keys: |
+            mozbuild-${{ runner.os }}-
+
+      - name: 恢复缓存（Gradle 依赖，~/.gradle）
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          # key 里带 run_id，每次运行都会存一份新的；restore-keys 取最近的一份。
+          # 这样即使某次构建中途失败，已经下载好的依赖也能留给下一次，调试补丁时很有用
+          key: gradle-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
       - name: 应用补丁
         working-directory: firefox
         run: |
@@ -76,6 +100,13 @@ jobs:
       - name: bootstrap（Artifact Mode，不装 C++ 编译工具链）
         working-directory: firefox
         run: ./mach --no-interactive bootstrap --application-choice=mobile_android_artifact_mode
+
+      - name: 保存缓存（~/.mozbuild）
+        if: ${{ steps.cache-mozbuild.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.mozbuild
+          key: mozbuild-${{ runner.os }}-${{ hashFiles('firefox/python/mozboot/mozboot/android*.txt', 'firefox/python/mozboot/mozboot/android.py') }}
 
       - name: 写 mozconfig
         working-directory: firefox
@@ -127,6 +158,14 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-# 跑通之后可以再加：
-#  * actions/cache 缓存 ~/.gradle 和 ~/.mozbuild，加快后续构建
+      - name: 保存缓存（Gradle 依赖）
+        if: ${{ !cancelled() }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ github.run_id }}
+
+# 以后可以再加：
 #  * 出新版本时自动提醒/触发（例如定时检查最新的 FIREFOX_*_RELEASE tag）
