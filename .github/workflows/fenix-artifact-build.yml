@@ -2,8 +2,7 @@
 # Firefox for Android【正式版】—— artifact（预编译产物）模式构建，不含签名
 #
 # 放到你自己【公开】仓库的 .github/workflows/ 下。仓库结构：
-#   patches/*.patch     会被自动应用（默认：0001 地址栏旧版样式、0002 主菜单去掉分享·账户·反馈网站问题、
-#                       0003 去掉 VPN 界面、0004 去掉推荐扩展、0005/0006 网页长按菜单去掉分享并改小圆角）
+#   patches/*.patch     会被自动应用（补丁清单见 README）
 #   optional/*.patch    不会被应用；想启用就挪到 patches/ 里
 #
 # 产物是【未签名】的 release APK（只有 arm64-v8a 一个），且不打成 zip：
@@ -11,13 +10,12 @@
 #
 # 说明：
 #  * 参数已对照 159.0 的源码核对过（bootstrap 取值、mozconfig、产物查找逻辑），
-#    补丁也在该 tag 上做过 `git apply --check` 和 Kotlin 语法检查，但整条流水线没有真正跑过，
+#    补丁也在该 tag 上做过 `git apply --check` 和 Kotlin 语法检查，但整条流水线没有完整跑通过，
 #    补丁也没有真正编译过。
 #  * 公开仓库的标准 runner 是 4 核 / 16 GB，私有仓库只有 2 核 / 8 GB。
+#    磁盘更紧张（空闲只有二三十 GB），所以下面有一步专门腾空间，并且会在构建时持续打印剩余空间。
 #  * artifact 模式只能改 Java/Kotlin/资源/字符串/JS/CSS/FTL，不能改 C/C++/Rust。
 #  * 本构建把所有 Kotlin 警告当作错误（上游约定），写补丁时要注意，详见 README。
-#  * 带缓存：~/.gradle（依赖）和 ~/.mozbuild（Android SDK 等）。第一次运行不会变快，从第二次起才有收益；
-#    缓存坏了或想作废时，到仓库的 Actions → Caches 页面删除，或把下面 key 里的 gradle- / mozbuild- 前缀改个名。
 #  * actions/checkout 的版本号请换成当前最新的大版本；
 #    upload-artifact 需要 v7 及以上才支持 `archive: false`。
 # ------------------------------------------------------------
@@ -43,11 +41,34 @@ jobs:
         with:
           path: mine
 
-      - name: 腾磁盘（标准 runner 空间很紧）
+      - name: 腾磁盘（标准 runner 的可用空间只有二三十 GB，不够用）
         run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /usr/share/swift \
-            /opt/hostedtoolcache/CodeQL || true
-          df -h /
+          echo "== 清理前 =="; df -h / /mnt || true
+          # 预装的 Android SDK/NDK 是最大的一块（十几 GB）。构建不需要它：bootstrap 会把自己用的 SDK
+          # 装到 ~/.mozbuild，mach 运行 Gradle 时也会用那份覆盖 ANDROID_HOME，所以可以放心删
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup \
+            /usr/local/share/boost /usr/share/swift /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/powershell /usr/local/share/chromium /opt/az /opt/microsoft \
+            /usr/lib/google-cloud-sdk || true
+          sudo docker image prune --all --force > /dev/null 2>&1 || true
+          # 故意不删 swap（/mnt 上那个文件）：Gradle 吃内存，删了可能直接被系统杀掉，而且报错里看不出原因
+          echo "== 清理后 =="; df -h / /mnt || true
+
+          # 磁盘监视：包在耗时的命令外面，每 60 秒打印一次剩余空间。
+          # 这样即使 runner 因磁盘写满而崩溃，已经输出的日志里也能看出空间是在哪一步被吃掉的
+          cat > "$RUNNER_TEMP/dw" <<'EOF'
+          #!/usr/bin/env bash
+          # 用法：dw 命令 [参数...]
+          ( while sleep 60; do
+              printf '[磁盘] %s  %s\n' "$(date +%T)" "$(df -h / | awk 'NR==2 {print $4 " 可用，已用 " $5}')"
+            done ) &
+          watcher=$!
+          "$@"
+          rc=$?
+          kill "$watcher" 2>/dev/null || true
+          exit "$rc"
+          EOF
+          chmod +x "$RUNNER_TEMP/dw"
 
       - name: 浅克隆上游源码（只取该 tag 的这一个提交）
         env:
@@ -63,6 +84,7 @@ jobs:
           # 把预编译产物的查找固定到这个提交：Mozilla 没为它编过就直接报错，
           # 而不是悄悄拿一个不匹配的版本凑合（源码与产物不一致会出难查的问题）
           echo "MOZ_ARTIFACT_REVISION=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          df -h / | tail -1
 
       - name: 应用补丁
         working-directory: firefox
@@ -77,7 +99,9 @@ jobs:
 
       - name: bootstrap（Artifact Mode，不装 C++ 编译工具链）
         working-directory: firefox
-        run: ./mach --no-interactive bootstrap --application-choice=mobile_android_artifact_mode
+        run: |
+          "$RUNNER_TEMP/dw" ./mach --no-interactive bootstrap --application-choice=mobile_android_artifact_mode
+          df -h / | tail -1
 
       - name: 写 mozconfig
         working-directory: firefox
@@ -93,7 +117,9 @@ jobs:
 
       - name: mach build（下载预编译产物并组装 GeckoView）
         working-directory: firefox
-        run: ./mach build
+        run: |
+          "$RUNNER_TEMP/dw" ./mach build
+          df -h / | tail -1
 
       - name: 编译 Fenix（Release，未签名，仅 arm64）
         working-directory: firefox
@@ -102,7 +128,7 @@ jobs:
           # 不加的话会同时生成 armeabi-v7a / arm64-v8a / x86_64 三个 APK，而预编译产物只有 arm64，
           # 另外两个没法用，还会多花时间，也没法用“一次只能传一个文件”的方式单独上传。
           # 内存不够时可再加 -PdisableOptimization（关闭 R8 优化，APK 会变大）。
-          ./mach gradle fenix:assembleRelease -PbenchmarkTest
+          "$RUNNER_TEMP/dw" ./mach gradle fenix:assembleRelease -PbenchmarkTest
 
       - name: 定位 APK（必须恰好 1 个）
         id: apk
@@ -129,14 +155,12 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: 保存缓存（Gradle 依赖）
+      - name: 磁盘使用情况（排查用；失败时也会运行）
         if: ${{ !cancelled() }}
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ github.run_id }}
+        run: |
+          df -h / /mnt || true
+          du -sh firefox firefox/objdir-artifact "$HOME/.mozbuild" "$HOME/.gradle" 2>/dev/null || true
 
-# 以后可以再加：
+# 跑通之后可以再加：
+#  * actions/cache 缓存 ~/.gradle 和 ~/.mozbuild，加快后续构建
 #  * 出新版本时自动提醒/触发（例如定时检查最新的 FIREFOX_*_RELEASE tag）
