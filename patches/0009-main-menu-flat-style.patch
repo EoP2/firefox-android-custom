@@ -1,0 +1,183 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/AddonMenuItem.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/AddonMenuItem.kt
+index a2be8b53..6e038984 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/AddonMenuItem.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/AddonMenuItem.kt
+@@ -73,8 +73,6 @@ internal fun AddonMenuItem(
+             url = addon.iconUrl,
+             modifier =
+                 Modifier.testTag(RECOMMENDED_ADDON_ITEM)
+-                    .clip(shape = MaterialTheme.shapes.extraSmall)
+-                    .background(color = MaterialTheme.colorScheme.surfaceBright)
+                     .semantics {
+                         role = Role.Button
+                         collectionItemInfo =
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/LibraryMenuItem.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/LibraryMenuItem.kt
+index 2b0030de..8f23a902 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/LibraryMenuItem.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/LibraryMenuItem.kt
+@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
++import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.Shape
+ import androidx.compose.ui.res.painterResource
+ import androidx.compose.ui.res.stringResource
+@@ -90,7 +91,7 @@ fun LibraryMenuItem(
+                     this.contentDescription = contentDescription
+                     role = Role.Button
+                 },
+-        color = MaterialTheme.colorScheme.surfaceBright,
++        color = Color.Transparent,
+         shape = shape,
+     ) {
+         Column(
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MainMenu.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MainMenu.kt
+index b6527013..961bc063 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MainMenu.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MainMenu.kt
+@@ -178,6 +178,7 @@ fun MainMenu(
+     extensionSubmenu: @Composable () -> Unit,
+ ) {
+     MenuFrame(
++        contentSpacing = 4.dp,
+         contentModifier =
+             Modifier.padding(
+                 start = 8.dp,
+@@ -434,6 +435,7 @@ private fun ToolsAndActionsMenuGroup(
+             Badge(
+                 badgeText = badgeText,
+                 state = menuItemState,
++                verticalPadding = 4.dp,
+             )
+         }
+ 
+@@ -703,8 +705,6 @@ private fun MoreExtensionsMenuItem(
+                     contentDescription = label
+                 }
+                 .wrapContentSize()
+-                .clip(shape = MaterialTheme.shapes.extraSmall)
+-                .background(color = MaterialTheme.colorScheme.surfaceBright)
+     ) {
+         MenuTextItem(
+             label = label,
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuGroup.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuGroup.kt
+index 7271578e..bc2103d4 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuGroup.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuGroup.kt
+@@ -28,7 +28,6 @@ import org.mozilla.fenix.theme.FirefoxTheme
+ @Composable
+ internal fun MenuGroup(content: @Composable () -> Unit) {
+     Column(
+-        modifier = Modifier.clip(shape = MaterialTheme.shapes.extraLarge),
+         verticalArrangement = Arrangement.spacedBy(2.dp),
+     ) {
+         content()
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuItem.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuItem.kt
+index 26d1f790..26701a91 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuItem.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuItem.kt
+@@ -51,6 +51,7 @@ import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.semantics.testTagsAsResourceId
+ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.tooling.preview.PreviewLightDark
++import androidx.compose.ui.unit.Dp
+ import androidx.compose.ui.unit.dp
+ import mozilla.components.compose.base.button.IconButton
+ import mozilla.components.compose.base.modifier.thenConditional
+@@ -147,9 +148,7 @@ internal fun MenuItem(
+                         }
+                     }
+                 }
+-                .wrapContentSize()
+-                .clip(shape = MaterialTheme.shapes.extraSmall)
+-                .background(color = MaterialTheme.colorScheme.surfaceBright),
++                .wrapContentSize(),
+         labelModifier = labelModifier,
+         colors =
+             ListItemDefaults.colors(
+@@ -213,10 +212,7 @@ internal fun MenuTextItem(
+             } else {
+                 MENU_ITEM_HEIGHT_WITHOUT_DESC
+             },
+-        modifier =
+-            modifier
+-                .clip(shape = MaterialTheme.shapes.extraSmall)
+-                .background(color = MaterialTheme.colorScheme.surfaceBright),
++        modifier = modifier,
+         iconPainter = iconPainter,
+         onClick = onClick,
+     )
+@@ -265,9 +261,7 @@ internal fun WebExtensionMenuItem(
+                         )
+                     testTagsAsResourceId = true
+                 }
+-                .wrapContentSize()
+-                .clip(shape = MaterialTheme.shapes.extraSmall)
+-                .background(color = MaterialTheme.colorScheme.surfaceBright),
++                .wrapContentSize(),
+         afterListAction = {
+             Row(
+                 modifier = Modifier.padding(start = 16.dp),
+@@ -330,8 +324,6 @@ internal fun MenuBadgeItem(
+                 }
+                 .thenConditional(Modifier.semantics { disabled() }) { !enabled }
+                 .semantics { disabled() }
+-                .clip(shape = MaterialTheme.shapes.extraSmall)
+-                .background(color = MaterialTheme.colorScheme.surfaceBright)
+                 .padding(horizontal = 16.dp, vertical = 8.dp),
+         horizontalArrangement = Arrangement.spacedBy(16.dp),
+         verticalAlignment = Alignment.CenterVertically,
+@@ -364,13 +356,14 @@ internal fun Badge(
+     badgeText: String,
+     modifier: Modifier = Modifier,
+     state: MenuItemState = MenuItemState.ENABLED,
++    verticalPadding: Dp = 8.dp,
+ ) {
+     Column(
+         modifier =
+             modifier
+                 .clip(CircleShape)
+                 .background(color = getBadgeColor(state))
+-                .padding(horizontal = 16.dp, vertical = 8.dp),
++                .padding(horizontal = 16.dp, vertical = verticalPadding),
+         horizontalAlignment = Alignment.CenterHorizontally,
+         verticalArrangement = Arrangement.spacedBy(8.dp),
+     ) {
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuScaffold.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuScaffold.kt
+index e485ff78..fe2a9b50 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuScaffold.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuScaffold.kt
+@@ -20,6 +20,7 @@ import androidx.compose.material3.HorizontalDivider
+ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.unit.Dp
+ import androidx.compose.ui.unit.dp
+ 
+ /**
+@@ -69,6 +70,7 @@ internal fun MenuScaffold(
+  *
+  * @param modifier [Modifier] to be applied to the layout.
+  * @param contentModifier [Modifier] to be applied to the content layout.
++ * @param contentSpacing The vertical spacing between the blocks of the content layout.
+  * @param scrollState The [ScrollState] used for vertical scrolling.
+  * @param header The Composable header block to render.
+  * @param footer The Composable footer block to render.
+@@ -78,6 +80,7 @@ internal fun MenuScaffold(
+ internal fun MenuFrame(
+     modifier: Modifier = Modifier,
+     contentModifier: Modifier = Modifier,
++    contentSpacing: Dp = 12.dp,
+     scrollState: ScrollState = rememberScrollState(),
+     header: @Composable () -> Unit = {},
+     footer: @Composable () -> Unit = {},
+@@ -89,7 +92,7 @@ internal fun MenuFrame(
+ 
+             Column(
+                 modifier = Modifier.verticalScroll(scrollState).then(contentModifier),
+-                verticalArrangement = Arrangement.spacedBy(12.dp),
++                verticalArrangement = Arrangement.spacedBy(contentSpacing),
+             ) {
+                 content()
+             }
