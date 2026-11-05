@@ -9,9 +9,9 @@
 # 构建完成后，在运行页面底部 Artifacts 里直接点 APK 文件名即可下载，然后在本地自己签名。
 #
 # 说明：
-#  * 参数已对照 159.0 的源码核对过（bootstrap 取值、mozconfig、产物查找逻辑），
-#    补丁也在该 tag 上做过 `git apply --check` 和 Kotlin 语法检查，但整条流水线没有完整跑通过，
-#    补丁也没有真正编译过。
+#  * 参数已对照 159.0 的源码核对过（bootstrap 取值、mozconfig、产物查找逻辑），159.0.1 在这些环节
+#    没有改动；补丁在 159.0 和 159.0.1 两个 tag 上都做过 `git apply` 和 Kotlin 语法检查，
+#    但整条流水线没有完整跑通过，补丁也没有真正编译过。
 #  * 公开仓库的标准 runner 是 4 核 / 16 GB，私有仓库只有 2 核 / 8 GB。
 #    磁盘更紧张（空闲只有二三十 GB），所以下面有一步专门腾空间，并且会在构建时持续打印剩余空间。
 #  * artifact 模式只能改 Java/Kotlin/资源/字符串/JS/CSS/FTL，不能改 C/C++/Rust。
@@ -26,7 +26,7 @@ on:
     inputs:
       upstream_ref:
         description: "上游正式版 tag；出新版本后改成新的，例如 FIREFOX_160_0_RELEASE"
-        default: "FIREFOX_159_0_RELEASE"
+        default: "FIREFOX_159_0_1_RELEASE"
 
 env:
   UPSTREAM: https://github.com/mozilla-firefox/firefox
@@ -72,7 +72,8 @@ jobs:
 
       - name: 浅克隆上游源码（只取该 tag 的这一个提交）
         env:
-          REF: ${{ inputs.upstream_ref || 'FIREFOX_159_0_RELEASE' }}
+          # 兜底值要和上面 inputs.upstream_ref 的 default 保持一致（改版本时两处一起改）
+          REF: ${{ inputs.upstream_ref || 'FIREFOX_159_0_1_RELEASE' }}
         run: |
           mkdir firefox && cd firefox
           git init -q
