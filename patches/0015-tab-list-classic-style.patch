@@ -1,0 +1,121 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabitems/TabListTabItem.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabitems/TabListTabItem.kt
+index 92e53c93..83fa7aaf 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabitems/TabListTabItem.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabitems/TabListTabItem.kt
+@@ -127,7 +127,7 @@ private fun TabContent(
+         if (selectionState.isSelected) {
+             MaterialTheme.colorScheme.primaryContainer
+         } else {
+-            MaterialTheme.colorScheme.surfaceBright
++            MaterialTheme.colorScheme.surface
+         }
+     Row(
+         modifier =
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
+index 4225e89d..a989bf90 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabpage/TabLayout.kt
+@@ -162,7 +162,12 @@ private const val NUM_COLUMNS_TAB_GRID_LANDSCAPE_THRESHOLD_1 = 3
+ private const val NUM_COLUMNS_TAB_GRID_LANDSCAPE_THRESHOLD_2 = 4
+ private const val NUM_COLUMNS_TAB_GRID_LANDSCAPE_THRESHOLD_3 = 5
+ 
++// The tab rows use the whole width of the list, like in the old tabs tray.
+ private val tabListPadding
++    @Composable @ReadOnlyComposable get() = 0.dp
++
++// Anything else in the list that isn't a tab row, like the inactive tabs card, keeps its margins.
++private val tabListHeaderPadding
+     @Composable @ReadOnlyComposable get() = FirefoxTheme.layout.space.static200
+ private val ignoredItems = setOf(HEADER_ITEM_KEY, SPAN_ITEM_KEY, TAB_GROUP_ONBOARDING_ITEM_KEY)
+ 
+@@ -1168,7 +1173,7 @@ private fun TabListItemContent(
+                             if (selectionState.isSelected) {
+                                 MaterialTheme.colorScheme.primaryContainer
+                             } else {
+-                                MaterialTheme.colorScheme.surfaceBright
++                                MaterialTheme.colorScheme.surface
+                             }
+                         ),
+                 trailingContent = {
+@@ -1299,7 +1304,7 @@ private fun InteractableTabList(
+                     }
+                     .drawHorizontalReorderIndicator(listInteractionState = listInteractionState, listState = state),
+             state = state,
+-            verticalArrangement = Arrangement.spacedBy(FirefoxTheme.layout.space.static25),
++            verticalArrangement = Arrangement.Top,
+             contentPadding =
+                 PaddingValues(
+                     bottom = tabListBottomPadding,
+@@ -1363,7 +1368,16 @@ private fun LazyListScope.interactableTabListContent(
+ ) {
+     header?.let {
+         item(key = HEADER_ITEM_KEY) {
+-            header()
++            Column(
++                modifier =
++                    Modifier.padding(
++                        start = tabListHeaderPadding,
++                        top = tabListHeaderPadding,
++                        end = tabListHeaderPadding,
++                    )
++            ) {
++                header()
++            }
+         }
+     }
+     tabListItems(
+@@ -1499,8 +1513,8 @@ private fun LazyListScope.tabListItems(
+ 
+     if (showTabGroupOnboarding) {
+         item(key = TAB_GROUP_ONBOARDING_ITEM_KEY) {
+-            // The onboarding card is always before a tab, so it will clip to TabListFirstItemShape if first.
+-            val cardModifier = if (onboardingInsertIndex == 0) Modifier.clip(TabListFirstItemShape) else Modifier
++            // The tab rows are flat, so the onboarding card doesn't need to be clipped to a rounded shape.
++            val cardModifier = Modifier
+             val collectionSemanticsModifier =
+                 collectionSemantics?.let {
+                     Modifier.semantics {
+@@ -1625,12 +1639,14 @@ private fun ReorderableTabList(
+                         shouldLongPressToDrag = reorderingEnabled && !isInMultiSelectMode,
+                     ),
+             state = state,
+-            verticalArrangement = Arrangement.spacedBy(FirefoxTheme.layout.space.static25),
++            verticalArrangement = Arrangement.Top,
+             contentPadding = PaddingValues(bottom = tabListBottomPadding),
+         ) {
+             header?.let {
+                 item(key = HEADER_ITEM_KEY) {
+-                    header()
++                    Column(modifier = Modifier.padding(horizontal = tabListHeaderPadding)) {
++                        header()
++                    }
+                 }
+             }
+ 
+@@ -1688,7 +1704,7 @@ private fun ReorderableTabList(
+                                             if (selectionState.isSelected) {
+                                                 MaterialTheme.colorScheme.primaryContainer
+                                             } else {
+-                                                MaterialTheme.colorScheme.surfaceBright
++                                                MaterialTheme.colorScheme.surface
+                                             }
+                                         ),
+                                 trailingContent = {
+@@ -2121,11 +2137,13 @@ private fun getTabShapeInfo(
+     itemIndex: Int,
+     size: Int,
+ ): TabListShapeInfo {
++    // Flat, full-width rows like in the old tabs tray: no rounded corners, so there is nothing to clip.
++    val flatShape = TabListBorderMiddleItemShape
+     return when {
+-        size == 1 -> TabListShapeInfo(TabListSingleItemShape, true)
+-        firstItemIndex == itemIndex -> TabListShapeInfo(TabListFirstItemShape, true)
+-        lastItemIndex == itemIndex -> TabListShapeInfo(TabListLastItemShape, true)
+-        else -> TabListShapeInfo(TabListBorderMiddleItemShape, false)
++        size == 1 -> TabListShapeInfo(flatShape, false)
++        firstItemIndex == itemIndex -> TabListShapeInfo(flatShape, false)
++        lastItemIndex == itemIndex -> TabListShapeInfo(flatShape, false)
++        else -> TabListShapeInfo(flatShape, false)
+     }
+ }
+ 
