@@ -25,7 +25,7 @@ index 293936da..7e4a880a 100644
  @Composable
  fun tabGridItemContainerColor(selectionState: TabsTrayItemSelectionState): Color {
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabitems/TabListTabItem.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabitems/TabListTabItem.kt
-index 92e53c93..c6129b8a 100644
+index 92e53c93..d8a7151a 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabitems/TabListTabItem.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/tabitems/TabListTabItem.kt
 @@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
@@ -50,7 +50,17 @@ index 92e53c93..c6129b8a 100644
      Row(
          modifier =
              modifier
-@@ -218,7 +214,7 @@ private fun Thumbnail(tab: TabsTrayItem.Tab) {
+@@ -144,7 +140,8 @@ private fun TabContent(
+                         ),
+                     clickedItem = tab,
+                 )
+-                .padding(start = 16.dp, top = 8.dp, bottom = 8.dp)
++                // The thumbnail has the same margin on its left as above and below it.
++                .padding(start = 8.dp, top = 8.dp, bottom = 8.dp)
+                 .testTag(TabsTrayTestTag.TAB_ITEM_ROOT)
+                 .semantics {
+                     selected = selectionState.isFocused
+@@ -218,7 +215,7 @@ private fun Thumbnail(tab: TabsTrayItem.Tab) {
              tabThumbnailImageData = tab.toThumbnailImageData(),
              thumbnailSizePx = thumbnailSize,
              modifier = Modifier.fillMaxSize().testTag(TabsTrayTestTag.TAB_ITEM_THUMBNAIL),

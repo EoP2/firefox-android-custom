@@ -42,10 +42,10 @@ index 500ba6b8..9846b251 100644
          }
      }
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/banner/TabsTrayBanner.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/banner/TabsTrayBanner.kt
-index db284639..fff40751 100644
+index b0a0fd15..92fe2e42 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/banner/TabsTrayBanner.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/banner/TabsTrayBanner.kt
-@@ -339,12 +339,12 @@ private fun TabPageBannerTabs(
+@@ -343,12 +343,12 @@ private fun TabPageBannerTabs(
          )
  
      BannerTab(
@@ -63,7 +63,7 @@ index db284639..fff40751 100644
      }
  
      BannerTab(
-@@ -375,12 +375,12 @@ private fun TabPageBannerTabs(
+@@ -379,12 +379,12 @@ private fun TabPageBannerTabs(
      }
  
      BannerTab(
