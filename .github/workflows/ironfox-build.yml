@@ -1,0 +1,361 @@
+# ------------------------------------------------------------
+# IronFox（Release）—— 复用 IronFox 官方 CI 已编好的 GeckoView，只编译剩下的部分，再叠加你的界面补丁
+#
+# 放到你自己仓库的 .github/workflows/ 下，并把 ironfox/ 目录（补丁和脚本）一起放进仓库。
+#
+# 做了什么：
+#   1. 从 artifacts.ironfoxoss.org 下载官方流水线编好的 GeckoView（三个架构的 zip），并校验 SHA-512
+#   2. 检查这批 AAR 是 Release 还是 Nightly 渠道编的（见下面“渠道”），不一致就在这里停下，不浪费后面几小时
+#   3. 取 IronFox 源码，把 ironfox/patches/*.patch 登记进它的补丁清单
+#   4. 跑 IronFox 自己的 get_sources.sh -> prebuild.sh -> build.sh bundle
+#      （IRONFOX_GECKOVIEW_BUNDLE_DIRECT=1：直接用上面下载的 AAR 拼，不编译 Gecko）
+#   5. 上传 arm64 APK（不打包成 zip）
+#
+# 渠道（重要）：
+#   IronFox 只在 main 分支的流水线里按 Release 编；标签流水线和其它分支都是 Nightly。
+#   Gecko 编译时就把渠道和应用 ID 写进去了（Nightly 是 org.ironfoxoss.ironfox.nightly），
+#   所以 Fenix 一侧的渠道必须和 AAR 一致。pipeline_id 的默认值来自一条标签流水线，
+#   按脚本推断它是 Nightly；如果检查步骤报“渠道不一致”：
+#     * channel 选 auto（按 AAR 实际渠道编）或 nightly（包名 .nightly，可与正式版共存），或者
+#     * 换成 main 分支上同一提交的流水线 ID，或者
+#     * 勾选 allow_channel_mismatch 强行继续（没测过会出什么问题，不推荐）
+#
+# 签名：
+#   默认不签名，产物是未签名 APK，在本地自己签（和你现在的做法一致）。
+#   想在 Actions 里签：勾选 sign，并在仓库 Settings -> Secrets 里配置
+#     ANDROID_KEYSTORE_BASE64   keystore 文件的 base64（base64 -w0 release.jks）
+#     ANDROID_KEYSTORE_PASSWORD keystore 口令
+#     ANDROID_KEY_ALIAS         密钥别名
+#     ANDROID_KEY_PASSWORD      密钥口令
+#
+# 说明与限制：
+#   * 没有在 GitHub 上实跑过：补丁部分用 IronFox 自己的 check_patches / apply_patches 在上游 159.0.1 源码上
+#     验证过（143 个补丁全部通过），环境变量用它的 env.sh 校验过；但整条流水线没有完整跑通，也没有编译过。
+#   * 官方 CI 里同一步（build-fenix）在 32 核机器上用了约 1 小时 7 分；标准 runner 只有 4 核（私有仓库 2 核），
+#     粗估 3~6 小时，可能超过 6 小时上限。第一次请先看耗时。
+#   * bootstrap.sh 的 Ubuntu 分支带着没有 -y 的 apt upgrade，并且装的是 Python 版 yq（输出带引号，
+#     IronFox 读不了补丁清单），所以这里自己装依赖，并改用 mikefarah 版 yq。
+#   * IronFox 版本固定为 ironfox_ref 的提交；换版本时 ironfox_ref、expected_commit、pipeline_id 三者必须同时改。
+#   * actions/checkout 的版本号请换成当前最新的大版本；upload-artifact 需要 v7 及以上才支持 `archive: false`。
+# ------------------------------------------------------------
+name: Build IronFox (prebuilt GeckoView)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ironfox_ref:
+        description: "IronFox 的 tag（GitHub 镜像上的）"
+        default: "v159.0.1"
+      expected_commit:
+        description: "期望的提交 SHA，不一致就中止（对应下面流水线页面显示的提交；留空 = 不检查）"
+        default: "c5f31df47db696318276bb0df5273213ecda2638"
+      pipeline_id:
+        description: "IronFox 官方 CI 的流水线 ID（GeckoView 从 artifacts.ironfoxoss.org/ironfox/<ID>/ 下载）"
+        default: "3026038830"
+      channel:
+        description: "构建渠道：release / nightly / auto（auto = 按 AAR 里检测到的渠道）"
+        type: choice
+        options:
+          - release
+          - nightly
+          - auto
+        default: release
+      allow_channel_mismatch:
+        description: "AAR 渠道与所选渠道不一致时仍然继续（不推荐）"
+        type: boolean
+        default: false
+      sign:
+        description: "用仓库 secrets 里的 keystore 在 Actions 里签名（不勾选 = 产出未签名 APK）"
+        type: boolean
+        default: false
+      locales:
+        description: "只构建这些语言，空格分隔，例如 en-US zh-CN（留空 = IronFox 默认的全部语言）"
+        default: ""
+      upload_all:
+        description: "额外上传全部产物（其它架构 APK、通用 APK、AAB 等）"
+        type: boolean
+        default: false
+
+env:
+  IRONFOX_REPO: https://github.com/ironfox-oss/IronFox
+  ARTIFACTS_URL: https://artifacts.ironfoxoss.org/ironfox
+  YQ_VERSION: v4.44.3
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: 取你自己仓库（ironfox/ 下的补丁和脚本）
+        uses: actions/checkout@v4
+        with:
+          path: mine
+
+      - name: 腾磁盘并准备磁盘监视器
+        run: |
+          echo "== 清理前 =="; df -h / /mnt || true
+          # 预装的 Android SDK/NDK 等是最大的几块。IronFox 的 get_sources.sh 会自己下载它用的 SDK/NDK/JDK，
+          # 所以这些可以放心删
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup \
+            /usr/local/share/boost /usr/share/swift /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/powershell /usr/local/share/chromium /opt/az /opt/microsoft \
+            /usr/lib/google-cloud-sdk || true
+          sudo docker image prune --all --force > /dev/null 2>&1 || true
+          # 故意不删 swap：Gradle 吃内存，删了可能直接被系统杀掉，而且报错里看不出原因
+          echo "== 清理后 =="; df -h / /mnt || true
+
+          # 磁盘监视：包在耗时的命令外面，每 60 秒打印一次剩余空间
+          cat > "$RUNNER_TEMP/dw" <<'EOF'
+          #!/usr/bin/env bash
+          # 用法：dw 命令 [参数...]
+          ( while sleep 60; do
+              printf '[磁盘] %s  %s\n' "$(date +%T)" "$(df -h / | awk 'NR==2 {print $4 " 可用，已用 " $5}')"
+            done ) &
+          watcher=$!
+          "$@"
+          rc=$?
+          kill "$watcher" 2>/dev/null || true
+          exit "$rc"
+          EOF
+          chmod +x "$RUNNER_TEMP/dw"
+
+      - name: 安装构建依赖（照 IronFox 的 bootstrap.sh 的 Ubuntu 清单，但不用它的 apt upgrade 和 apt 版 yq）
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          # 比 bootstrap.sh 多装 clang：IronFox 默认去找 /usr/bin/clang，只装 clang-18 不会有这个路径
+          # （实测缺它时 env.sh 不报错，但装上更保险）。
+          # jq m4 libtool git-lfs 是 IronFox 的 env.sh 会检查的工具，runner 镜像里通常已有，这里装一遍保险
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            apt-transport-https clang clang-18 cmake curl git gpg make nasm ninja-build patch perl \
+            tar unzip xz-utils zlib1g-dev jq m4 libtool git-lfs
+          # Ubuntu 的 apt 版 yq 是 Python 版：`yq '.patches[].file'` 会输出带引号的字符串，IronFox 读不了。
+          # IronFox 要的是 mikefarah 的 Go 版，这里下载固定版本，并用 IRONFOX_YQ 指给它
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -fsSL --retry 3 --retry-delay 5 -o "$RUNNER_TEMP/bin/yq" \
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          chmod +x "$RUNNER_TEMP/bin/yq"
+          "$RUNNER_TEMP/bin/yq" --version
+          echo "IRONFOX_YQ=$RUNNER_TEMP/bin/yq" >> "$GITHUB_ENV"
+
+      - name: 下载官方 CI 编好的 GeckoView（三个架构）并校验 SHA-512
+        env:
+          PIPELINE: ${{ inputs.pipeline_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/aar"
+          cd "$RUNNER_TEMP/aar"
+          # bundle 构建会检查这三个文件是否都在，所以三个架构都要
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            f="geckoview-$abi.zip"
+            url="$ARTIFACTS_URL/$PIPELINE/$f"
+            echo "下载 $url"
+            curl -fL --retry 3 --retry-delay 5 -o "$f" "$url"
+            curl -fsSL --retry 3 --retry-delay 5 -o "$f-sha512sum.txt" "$url-sha512sum.txt"
+            expected="$(awk 'NR==1 {print $1}' "$f-sha512sum.txt")"
+            actual="$(sha512sum "$f" | awk '{print $1}')"
+            if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+              echo "::error::$f 的 SHA-512 校验失败（期望 '$expected'，实际 '$actual'）"
+              exit 1
+            fi
+            echo "$f 校验通过，$(du -h "$f" | cut -f1)，SHA-512 ${actual:0:16}…"
+          done
+          ls -l
+          {
+            echo "IRONFOX_GECKOVIEW_BUNDLE_DIRECT=1"
+            echo "IRONFOX_GECKOVIEW_AAR_ARM64=$PWD/geckoview-arm64-v8a.zip"
+            echo "IRONFOX_GECKOVIEW_AAR_ARM=$PWD/geckoview-armeabi-v7a.zip"
+            echo "IRONFOX_GECKOVIEW_AAR_X86_64=$PWD/geckoview-x86_64.zip"
+            echo "AAR_DIR=$PWD"
+          } >> "$GITHUB_ENV"
+
+      - name: 检查 AAR 的渠道，并决定本次构建的渠道
+        env:
+          WANT: ${{ inputs.channel }}
+          ALLOW: ${{ inputs.allow_channel_mismatch }}
+          PIPELINE: ${{ inputs.pipeline_id }}
+        run: |
+          set -euo pipefail
+          vals=()
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            echo "--- geckoview-$abi.zip"
+            v="$(bash mine/ironfox/check-aar-channel.sh "$AAR_DIR/geckoview-$abi.zip")"
+            echo "=> $v"
+            vals+=("$v")
+          done
+          known="$(printf '%s\n' "${vals[@]}" | grep -v '^unknown$' | sort -u || true)"
+          n_known="$(printf '%s' "$known" | grep -c . || true)"
+          if [ "$n_known" -gt 1 ]; then
+            echo "::error::三个架构的 AAR 渠道不一致（${vals[*]}），它们必须来自同一条流水线"
+            exit 1
+          fi
+          detected="${known:-unknown}"
+
+          if [ "$WANT" = "auto" ]; then
+            if [ "$detected" = "unknown" ]; then
+              echo "::error::channel=auto，但检测不到 AAR 的渠道。请明确选择 release 或 nightly"
+              exit 1
+            fi
+            final="$detected"
+          else
+            final="$WANT"
+            if [ "$detected" = "unknown" ]; then
+              echo "::warning::没能检测出 AAR 的渠道（检测方法是按源码推断的，没在真实 AAR 上验证过），按你选的 $WANT 继续。"
+            elif [ "$detected" != "$WANT" ]; then
+              msg="流水线 $PIPELINE 的 AAR 是 $detected 渠道，你选的是 $WANT。Gecko 里已经写死了渠道和应用 ID，Fenix 这边对不上会出什么问题我没测过。可选：channel 改成 auto 或 $detected；或换成 $WANT 渠道对应的流水线 ID；或勾选 allow_channel_mismatch 强行继续。"
+              if [ "$ALLOW" = "true" ]; then
+                echo "::warning::$msg（已勾选 allow_channel_mismatch，继续）"
+              else
+                echo "::error::$msg"
+                exit 1
+              fi
+            fi
+          fi
+
+          echo "AAR 渠道: $detected；本次构建渠道: $final"
+          if [ "$final" = "release" ]; then
+            echo "IRONFOX_RELEASE=1" >> "$GITHUB_ENV"
+          fi
+          {
+            echo "### 渠道"
+            echo "- 流水线 \`$PIPELINE\` 的 AAR 渠道：**$detected**"
+            echo "- 本次构建渠道：**$final**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 取 IronFox 源码
+        env:
+          REF: ${{ inputs.ironfox_ref }}
+          EXPECTED: ${{ inputs.expected_commit }}
+          PIPELINE: ${{ inputs.pipeline_id }}
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$REF" "$IRONFOX_REPO" IronFox
+          cd IronFox
+          commit="$(git rev-parse HEAD)"
+          git log -1 --format='%H %s'
+          if [ -n "$EXPECTED" ] && [ "$commit" != "$EXPECTED" ]; then
+            echo "::error::提交不一致：$REF 实际是 $commit，期望 $EXPECTED（应当与流水线 $PIPELINE 页面显示的提交一致）。换版本时 ironfox_ref、expected_commit、pipeline_id 要一起改"
+            exit 1
+          fi
+          echo "- IronFox 源码：\`$REF\` @ \`$commit\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 登记你的补丁
+        run: |
+          set -euo pipefail
+          bash mine/ironfox/register-patches.sh IronFox mine/ironfox/patches
+
+      - name: 准备签名密钥
+        if: ${{ inputs.sign }}
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for v in KS_B64 KS_PASS KEY_ALIAS KEY_PASS; do
+            if [ -z "${!v}" ]; then
+              echo "::error::勾选了 sign，但缺少对应的 secret（ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD）"
+              exit 1
+            fi
+          done
+          umask 077
+          mkdir -p "$RUNNER_TEMP/sign"
+          printf '%s' "$KS_B64" | base64 -d > "$RUNNER_TEMP/sign/release.jks"
+          printf '%s' "$KS_PASS" > "$RUNNER_TEMP/sign/ks.pass"
+          printf '%s' "$KEY_PASS" > "$RUNNER_TEMP/sign/key.pass"
+          {
+            echo "IRONFOX_SIGN=1"
+            echo "IRONFOX_ANDROID_KEYSTORE=$RUNNER_TEMP/sign/release.jks"
+            echo "IRONFOX_ANDROID_KEYSTORE_KEY_ALIAS=$KEY_ALIAS"
+            echo "IRONFOX_ANDROID_KEYSTORE_PASS_FILE=$RUNNER_TEMP/sign/ks.pass"
+            echo "IRONFOX_ANDROID_KEYSTORE_KEY_PASS_FILE=$RUNNER_TEMP/sign/key.pass"
+          } >> "$GITHUB_ENV"
+
+      - name: 其它构建选项
+        env:
+          LOCALES: ${{ inputs.locales }}
+        run: |
+          # 本地构建时 build.sh 签名后会问要不要用 adb 安装，CI 里必须跳过
+          echo "IRONFOX_SIGN_SKIP_ADB=1" >> "$GITHUB_ENV"
+          if [ -n "$LOCALES" ]; then
+            echo "IRONFOX_LOCALES=$LOCALES" >> "$GITHUB_ENV"
+            echo "只构建这些语言：$LOCALES"
+          fi
+
+      - name: get_sources.sh（下载 Gecko / Application Services / Glean 等源码和工具链）
+        working-directory: IronFox
+        run: |
+          "$RUNNER_TEMP/dw" ./scripts/get_sources.sh
+          df -h / | tail -1
+
+      - name: prebuild.sh（检查并应用补丁，再做 IronFox 自己的改动）
+        working-directory: IronFox
+        run: |
+          "$RUNNER_TEMP/dw" ./scripts/prebuild.sh
+          df -h / | tail -1
+
+      - name: build.sh bundle（用现成的 GeckoView，只编剩下的部分）
+        working-directory: IronFox
+        run: |
+          # 注意：bundle 会先 assembleRelease（三个架构各一个 APK 加通用 APK），再 bundleRelease 出 AAB，
+          # 所以 Fenix 实际要编两遍
+          "$RUNNER_TEMP/dw" ./scripts/build.sh bundle
+          df -h / | tail -1
+
+      - name: 定位 arm64 APK（必须恰好 1 个）
+        id: apk
+        env:
+          SIGN: ${{ inputs.sign }}
+        run: |
+          set -euo pipefail
+          echo "== IronFox/outputs =="
+          find IronFox/outputs -type f -printf '%10s  %p\n' | sort -k2
+          mapfile -t apks < <(find IronFox/outputs/apk -maxdepth 1 -type f -name '*-arm64-v8a.apk')
+          echo "找到 ${#apks[@]} 个 arm64 APK"
+          if [ "${#apks[@]}" -ne 1 ]; then
+            echo "::error::期望恰好 1 个 arm64 APK，实际 ${#apks[@]} 个"
+            exit 1
+          fi
+          mkdir -p out
+          cp -v "${apks[0]}" out/
+          echo "path=out/$(basename "${apks[0]}")" >> "$GITHUB_OUTPUT"
+          if [ "$SIGN" != "true" ]; then
+            echo "::notice::这是【未签名】的 APK，请在本地签名后再安装"
+          fi
+
+      - name: 上传 arm64 APK（不打包成 zip）
+        uses: actions/upload-artifact@v7
+        with:
+          # archive: false 时一次只能传 1 个文件，artifact 的名字就是文件名
+          path: ${{ steps.apk.outputs.path }}
+          archive: false
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: 上传全部产物（可选）
+        if: ${{ inputs.upload_all }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ironfox-all-outputs
+          path: |
+            IronFox/outputs/apk
+            IronFox/outputs/apks
+            IronFox/outputs/aab
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: 上传日志（失败时）
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ironfox-logs
+          path: IronFox/build/logs
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: 磁盘使用情况（排查用；失败时也会运行）
+        if: ${{ !cancelled() }}
+        run: |
+          df -h / /mnt || true
+          du -sh IronFox "$HOME/.gradle" "$HOME/.cargo" 2>/dev/null || true
