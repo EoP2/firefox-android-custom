@@ -1,0 +1,89 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
+index 8945fbfc..960d8035 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
+@@ -12,6 +12,7 @@ import android.content.res.Configuration
+ import android.graphics.Color
+ import android.os.Build
+ import android.os.Bundle
++import android.view.Gravity
+ import android.view.KeyEvent
+ import android.view.LayoutInflater
+ import android.view.View
+@@ -38,6 +39,7 @@ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.unit.dp
++import androidx.coordinatorlayout.widget.CoordinatorLayout
+ import androidx.core.graphics.drawable.toDrawable
+ import androidx.core.net.toUri
+ import androidx.core.view.ViewCompat
+@@ -251,6 +253,17 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+         }
+     }
+ 
++    override fun onStart() {
++        // The sheet is narrow and aligned to the end of the screen. This has to be set before the dialog is shown,
++        // otherwise the sheet would flash at full width for a moment.
++        dialog?.findViewById<View?>(materialR.id.design_bottom_sheet)?.let { bottomSheet ->
++            (bottomSheet.layoutParams as? CoordinatorLayout.LayoutParams)?.gravity = Gravity.END or Gravity.TOP
++            BottomSheetBehavior.from(bottomSheet).maxWidth = calculateMenuSheetWidth()
++        }
++
++        super.onStart()
++    }
++
+     @Suppress("LongMethod", "CyclomaticComplexMethod", "CognitiveComplexMethod")
+     override fun onCreateView(
+         inflater: LayoutInflater,
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt
+index 3175ddd4..ae86c950 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt
+@@ -8,6 +8,7 @@ import android.app.Dialog
+ import android.content.res.Configuration
+ import android.os.Build
+ import android.os.Bundle
++import android.view.Gravity
+ import android.view.KeyEvent
+ import android.view.LayoutInflater
+ import android.view.View
+@@ -22,6 +23,7 @@ import androidx.compose.material3.SnackbarHostState
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.unit.dp
++import androidx.coordinatorlayout.widget.CoordinatorLayout
+ import androidx.core.view.ViewCompat
+ import androidx.core.view.WindowInsetsCompat.Type.systemBars
+ import androidx.fragment.compose.content
+@@ -131,6 +133,17 @@ class MenuFragment : BottomSheetDialogFragment() {
+         }
+     }
+ 
++    override fun onStart() {
++        // The sheet is narrow and aligned to the end of the screen. This has to be set before the dialog is shown,
++        // otherwise the sheet would flash at full width for a moment.
++        dialog?.findViewById<View?>(materialR.id.design_bottom_sheet)?.let { bottomSheet ->
++            (bottomSheet.layoutParams as? CoordinatorLayout.LayoutParams)?.gravity = Gravity.END or Gravity.TOP
++            BottomSheetBehavior.from(bottomSheet).maxWidth = calculateMenuSheetWidth()
++        }
++
++        super.onStart()
++    }
++
+     override fun onCreateView(
+         inflater: LayoutInflater,
+         container: ViewGroup?,
+diff --git a/mobile/android/fenix/app/src/main/res/values/dimens.xml b/mobile/android/fenix/app/src/main/res/values/dimens.xml
+index ae0d32d8..01b98346 100644
+--- a/mobile/android/fenix/app/src/main/res/values/dimens.xml
++++ b/mobile/android/fenix/app/src/main/res/values/dimens.xml
+@@ -148,7 +148,7 @@
+     <dimen name="tap_increase_2">2dp</dimen>
+ 
+     <!-- Browser Menu -->
+-    <dimen name="browser_menu_max_width">640dp</dimen>
++    <dimen name="browser_menu_max_width">180dp</dimen>
+     <dimen name="browser_menu_padding">56dp</dimen>
+ 
+ </resources>
