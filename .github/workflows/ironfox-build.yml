@@ -93,6 +93,8 @@ jobs:
 
       - name: 腾磁盘并准备磁盘监视器
         run: |
+          # 记录机器规格：之后分析耗时要用（官方 CI 是 32 核 128 GB，这里通常只有 4 核 16 GB）
+          echo "== 机器 =="; . /etc/os-release && echo "$PRETTY_NAME"; echo "CPU 核数: $(nproc)"; free -h | head -2
           echo "== 清理前 =="; df -h / /mnt || true
           # 预装的 Android SDK/NDK 等是最大的几块。IronFox 的 get_sources.sh 会自己下载它用的 SDK/NDK/JDK，
           # 所以这些可以放心删
@@ -272,12 +274,24 @@ jobs:
             echo "IRONFOX_ANDROID_KEYSTORE_KEY_PASS_FILE=$RUNNER_TEMP/sign/key.pass"
           } >> "$GITHUB_ENV"
 
-      - name: 其它构建选项
+      - name: 其它构建选项（跳过交互提问、占位密钥文件、语言）
         env:
           LOCALES: ${{ inputs.locales }}
         run: |
-          # 本地构建时 build.sh 签名后会问要不要用 adb 安装，CI 里必须跳过
+          set -euo pipefail
+          # 本地构建时 build.sh 签名后会问要不要用 adb 安装，Actions 里没有终端可输入，必须跳过
           echo "IRONFOX_SIGN_SKIP_ADB=1" >> "$GITHUB_ENV"
+
+          # build.sh 一开头会检查 IRONFOX_SB_GAPI_KEY_FILE（Safe Browsing 的 API 密钥文件）：没设置时，
+          # 本地模式会弹出“是否继续 [y/N]”，Actions 里读不到输入，就以 “Aborting...” 中止了。
+          # 但 bundle 构建里 Mach 不编译 Gecko（mozconfig 里 IRONFOX_MACH_BUILD=0，走的是
+          # --without-google-safebrowsing-api-keyfile），这个文件的内容根本不会被读取，只是检查要求它存在，
+          # 所以放一个占位文件通过检查即可。官方预编译的 GeckoView 里已经编进了 IronFox 官方的密钥，
+          # 这里的占位内容不会进入产物。
+          mkdir -p "$RUNNER_TEMP/sb"
+          printf '%s\n' 'placeholder-not-used' > "$RUNNER_TEMP/sb/sb-gapi-key.txt"
+          echo "IRONFOX_SB_GAPI_KEY_FILE=$RUNNER_TEMP/sb/sb-gapi-key.txt" >> "$GITHUB_ENV"
+
           if [ -n "$LOCALES" ]; then
             echo "IRONFOX_LOCALES=$LOCALES" >> "$GITHUB_ENV"
             echo "只构建这些语言：$LOCALES"
@@ -345,8 +359,8 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: 上传日志（失败时）
-        if: ${{ failure() }}
+      - name: 上传日志（失败、被取消或超过 6 小时上限时）
+        if: ${{ failure() || cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: ironfox-logs
