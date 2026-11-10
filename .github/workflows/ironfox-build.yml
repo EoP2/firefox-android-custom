@@ -35,6 +35,10 @@
 #     粗估 3~6 小时，可能超过 6 小时上限。第一次请先看耗时。
 #   * bootstrap.sh 的 Ubuntu 分支带着没有 -y 的 apt upgrade，并且装的是 Python 版 yq（输出带引号，
 #     IronFox 读不了补丁清单），所以这里自己装依赖，并改用 mikefarah 版 yq。
+#   * get_sources / prebuild / build 三个长步骤都由 ironfox/watchdog.sh 监视：每分钟打印磁盘和负载；
+#     CPU、网络、磁盘都长时间没有变化就判定卡住，抓取诊断（进程树、等待点、strace、Python 调用栈、
+#     网络连接）后终止，退出码 124。上一次 build.sh 里 mach 创建完 'build' 站点后卡了将近 6 小时、
+#     一行输出都没有，就是因为当时没有这个监视；现在再卡住大约 20 分钟后就会失败并给出原因。
 #   * IronFox 版本固定为 ironfox_ref 的提交；换版本时 ironfox_ref、expected_commit、pipeline_id 三者必须同时改。
 #   * actions/checkout 的版本号请换成当前最新的大版本；upload-artifact 需要 v7 及以上才支持 `archive: false`。
 # ------------------------------------------------------------
@@ -91,7 +95,7 @@ jobs:
         with:
           path: mine
 
-      - name: 腾磁盘并准备磁盘监视器
+      - name: 腾磁盘并记录机器规格
         run: |
           # 记录机器规格：之后分析耗时要用（官方 CI 是 32 核 128 GB，这里通常只有 4 核 16 GB）
           echo "== 机器 =="; . /etc/os-release && echo "$PRETTY_NAME"; echo "CPU 核数: $(nproc)"; free -h | head -2
@@ -105,21 +109,6 @@ jobs:
           sudo docker image prune --all --force > /dev/null 2>&1 || true
           # 故意不删 swap：Gradle 吃内存，删了可能直接被系统杀掉，而且报错里看不出原因
           echo "== 清理后 =="; df -h / /mnt || true
-
-          # 磁盘监视：包在耗时的命令外面，每 60 秒打印一次剩余空间
-          cat > "$RUNNER_TEMP/dw" <<'EOF'
-          #!/usr/bin/env bash
-          # 用法：dw 命令 [参数...]
-          ( while sleep 60; do
-              printf '[磁盘] %s  %s\n' "$(date +%T)" "$(df -h / | awk 'NR==2 {print $4 " 可用，已用 " $5}')"
-            done ) &
-          watcher=$!
-          "$@"
-          rc=$?
-          kill "$watcher" 2>/dev/null || true
-          exit "$rc"
-          EOF
-          chmod +x "$RUNNER_TEMP/dw"
 
       - name: 安装构建依赖（照 IronFox 的 bootstrap.sh 的 Ubuntu 清单，但不用它的 apt upgrade 和 apt 版 yq）
         run: |
@@ -299,22 +288,37 @@ jobs:
 
       - name: get_sources.sh（下载 Gecko / Application Services / Glean 等源码和工具链）
         working-directory: IronFox
+        env:
+          DW_STALL_SECS: "1800"
+          PYTHONUNBUFFERED: "1"
         run: |
-          "$RUNNER_TEMP/dw" ./scripts/get_sources.sh
+          # watchdog.sh：每分钟打印磁盘和负载；CPU、网络、磁盘都长时间没有变化就判定卡住，
+          # 抓取诊断信息后终止（退出码 124）；命令的标准输入是 /dev/null，任何交互提问都会立刻失败
+          bash "$GITHUB_WORKSPACE/mine/ironfox/watchdog.sh" ./scripts/get_sources.sh
           df -h / | tail -1
 
       - name: prebuild.sh（检查并应用补丁，再做 IronFox 自己的改动）
         working-directory: IronFox
+        env:
+          DW_STALL_SECS: "1200"
+          PYTHONUNBUFFERED: "1"
         run: |
-          "$RUNNER_TEMP/dw" ./scripts/prebuild.sh
+          bash "$GITHUB_WORKSPACE/mine/ironfox/watchdog.sh" ./scripts/prebuild.sh
           df -h / | tail -1
 
       - name: build.sh bundle（用现成的 GeckoView，只编剩下的部分）
         working-directory: IronFox
+        env:
+          DW_STALL_SECS: "1200"
+          PYTHONUNBUFFERED: "1"
+          # mach 创建 Python 站点时默认把 pip/uv 的输出吞掉；打开后能在日志里看到它在装什么、卡在哪
+          MACH_SHOW_PIP_OUTPUT: "1"
         run: |
           # 注意：bundle 会先 assembleRelease（三个架构各一个 APK 加通用 APK），再 bundleRelease 出 AAB，
           # 所以 Fenix 实际要编两遍
-          "$RUNNER_TEMP/dw" ./scripts/build.sh bundle
+          # 上一次在这一步里，mach 创建完 'build' 站点后整整 5 小时 47 分没有任何输出，直到被 6 小时上限取消。
+          # 现在有了 watchdog.sh，再卡住的话大约 20 分钟后就会失败，并在日志里给出它在等什么
+          bash "$GITHUB_WORKSPACE/mine/ironfox/watchdog.sh" ./scripts/build.sh bundle
           df -h / | tail -1
 
       - name: 定位 arm64 APK（必须恰好 1 个）
