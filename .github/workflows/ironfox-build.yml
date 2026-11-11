@@ -21,8 +21,10 @@
 #     * 勾选 allow_channel_mismatch 强行继续（没测过会出什么问题，不推荐）
 #
 # 签名：
-#   默认不签名，产物是未签名 APK，在本地自己签（和你现在的做法一致）。
-#   想在 Actions 里签：勾选 sign，并在仓库 Settings -> Secrets 里配置
+#   默认不用你的密钥签名。IronFox 在不签名时产出的 APK 文件名带 -debug-signed：Gradle 在本地构建时用 debug 密钥签了名
+#   （Fenix 的 build.gradle 里写明“本地构建就用 debug 签名”）。这样的 APK 可以直接安装，但 debug 密钥是 runner 上现生成的，
+#   每次构建大概率都不同，没法覆盖安装上一次的版本。要稳定的签名：本地用你自己的 keystore 重新签名（和你现在的做法一致），
+#   或者在 Actions 里签：勾选 sign，并在仓库 Settings -> Secrets 里配置
 #     ANDROID_KEYSTORE_BASE64   keystore 文件的 base64（base64 -w0 release.jks）
 #     ANDROID_KEYSTORE_PASSWORD keystore 口令
 #     ANDROID_KEY_ALIAS         密钥别名
@@ -72,7 +74,7 @@ on:
         type: boolean
         default: false
       sign:
-        description: "用仓库 secrets 里的 keystore 在 Actions 里签名（不勾选 = 产出未签名 APK）"
+        description: "用仓库 secrets 里的 keystore 在 Actions 里签名（不勾选 = 产出用一次性 debug 密钥签的 APK，可安装但签名每次不同）"
         type: boolean
         default: false
       locales:
@@ -350,7 +352,9 @@ jobs:
           set -euo pipefail
           echo "== IronFox/outputs =="
           find IronFox/outputs -type f -printf '%10s  %p\n' | sort -k2
-          mapfile -t apks < <(find IronFox/outputs/apk -maxdepth 1 -type f -name '*-arm64-v8a.apk')
+          # 文件名有两种：签名时是 ironfox-<版本>-arm64-v8a.apk；不签名时 IronFox 会加上 -debug-signed 后缀。
+          # Nightly 渠道的名字里还多一段 -nightly，所以用通配符 *arm64-v8a*.apk
+          mapfile -t apks < <(find IronFox/outputs/apk -maxdepth 1 -type f -name '*arm64-v8a*.apk')
           echo "找到 ${#apks[@]} 个 arm64 APK"
           if [ "${#apks[@]}" -ne 1 ]; then
             echo "::error::期望恰好 1 个 arm64 APK，实际 ${#apks[@]} 个"
@@ -360,7 +364,7 @@ jobs:
           cp -v "${apks[0]}" out/
           echo "path=out/$(basename "${apks[0]}")" >> "$GITHUB_OUTPUT"
           if [ "$SIGN" != "true" ]; then
-            echo "::notice::这是【未签名】的 APK，请在本地签名后再安装"
+            echo "::notice::这个 APK 没有用你的密钥签名：Gradle 在本地构建时用 debug 密钥签了名（文件名里的 debug-signed），可以直接安装，但这把密钥是这台 runner 上现生成的，每次构建大概率都不同，没法覆盖安装上一次的版本。要稳定的签名，请用你自己的 keystore 重新签名，或勾选 sign"
           fi
 
       - name: 上传 arm64 APK（不打包成 zip）
@@ -383,6 +387,15 @@ jobs:
             IronFox/outputs/aab
           if-no-files-found: warn
           retention-days: 14
+
+      - name: 兜底：构建之后有步骤失败时，仍把 arm64 APK 打包上传（免得几小时的编译白费）
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ironfox-arm64-fallback
+          path: IronFox/outputs/apk/*arm64-v8a*.apk
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: 上传日志（失败、被取消或超过 6 小时上限时）
         if: ${{ failure() || cancelled() }}
