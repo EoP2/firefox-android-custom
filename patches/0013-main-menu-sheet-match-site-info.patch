@@ -1,0 +1,44 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
+index 8e1d6e94..8945fbfc 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
+@@ -294,7 +294,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+                 TranslationsEnabledSettings.dataStore(requireContext()).isEnabled.collectAsState(true)
+ 
+             MenuDialogBottomSheet(
+-                modifier = Modifier.padding(top = 16.dp, bottom = 16.dp).width(32.dp),
++                modifier = Modifier.padding(top = 8.dp, bottom = 5.dp).width(32.dp),
+                 onRequestDismiss = ::dismiss,
+                 menuHandleState =
+                     MenuHandleState(
+@@ -307,7 +307,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+                     ),
+                 snackbarHostState = snackbarHostState,
+                 cornerShape =
+-                    MaterialTheme.shapes.extraLarge.copy(
++                    MaterialTheme.shapes.large.copy(
+                         bottomStart = CornerSize(0.dp),
+                         bottomEnd = CornerSize(0.dp),
+                     ),
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt
+index b64ef5fc..3175ddd4 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt
+@@ -146,7 +146,7 @@ class MenuFragment : BottomSheetDialogFragment() {
+ 
+             MenuDialogBottomSheet(
+                 modifier =
+-                    Modifier.padding(vertical = FirefoxTheme.layout.space.static200)
++                    Modifier.padding(top = 8.dp, bottom = 5.dp)
+                         .width(FirefoxTheme.layout.space.static400),
+                 onRequestDismiss = ::dismiss,
+                 menuHandleState =
+@@ -156,7 +156,7 @@ class MenuFragment : BottomSheetDialogFragment() {
+                     ),
+                 snackbarHostState = snackbarHostState,
+                 cornerShape =
+-                    MaterialTheme.shapes.extraLarge.copy(
++                    MaterialTheme.shapes.large.copy(
+                         bottomStart = CornerSize(0.dp),
+                         bottomEnd = CornerSize(0.dp),
+                     ),

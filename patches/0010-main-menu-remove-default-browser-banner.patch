@@ -1,0 +1,38 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
+index 20f4914a..8e1d6e94 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
+@@ -262,7 +262,6 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+ 
+             val components = components
+             val settings = components.settings
+-            val defaultBrowser = settings.isDefaultBrowser
+             val appStore = components.appStore
+ 
+             val customTab =
+@@ -432,8 +431,6 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+ 
+                 val contentState: Route by remember { mutableStateOf(initRoute) }
+ 
+-                var shouldShowMenuBanner by remember { mutableStateOf(settings.shouldShowMenuBanner) }
+-
+                 val extensionsMenuItemDescription =
+                     getExtensionsMenuItemDescription(
+                         isExtensionsProcessDisabled = isExtensionsProcessDisabled,
+@@ -549,7 +546,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+                                 canGoForward = selectedTab?.content?.canGoForward ?: true,
+                                 extensionsMenuItemDescription = extensionsMenuItemDescription,
+                                 scrollState = scrollState,
+-                                showBanner = shouldShowMenuBanner && !defaultBrowser,
++                                showBanner = false,
+                                 isDownloadHighlighted = isDownloadHighlighted,
+                                 webExtensionMenuCount = webExtensionsCount,
+                                 isAllWebExtensionsDisabled = isAllWebExtensionsDisabled,
+@@ -592,7 +589,6 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+                                 },
+                                 onBannerDismiss = {
+                                     menuStore.dispatch(MenuAction.DefaultBrowserMenuBannerDismissed)
+-                                    shouldShowMenuBanner = false
+                                 },
+                                 onExtensionsMenuClick = {
+                                     if (

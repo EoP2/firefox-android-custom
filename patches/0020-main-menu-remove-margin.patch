@@ -1,0 +1,78 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/CustomTabMenu.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/CustomTabMenu.kt
+index 5f779b02..39dd2f60 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/CustomTabMenu.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/CustomTabMenu.kt
+@@ -123,13 +123,9 @@ internal fun CustomTabMenu(
+     onSummarizePageClick: () -> Unit,
+ ) {
+     MenuFrame(
+-        contentModifier =
+-            Modifier.padding(
+-                start = 8.dp,
+-                top = if (isBottomToolbar) 0.dp else 8.dp,
+-                end = 8.dp,
+-                bottom = if (isBottomToolbar) MenuNavigationTwoRowsHeight + 4.dp else 16.dp,
+-            ),
++        // The menu is narrow, so there is no margin around its content. The only exception is the room at the bottom
++        // for the navigation (and the divider above it), which is drawn over the content when the toolbar is at the bottom.
++        contentModifier = Modifier.padding(bottom = if (isBottomToolbar) MenuNavigationTwoRowsHeight + 1.dp else 0.dp),
+         scrollState = scrollState,
+         header = {
+             if (!isBottomToolbar) {
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MainMenu.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MainMenu.kt
+index b1773f80..dc664444 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MainMenu.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MainMenu.kt
+@@ -179,21 +179,15 @@ fun MainMenu(
+ ) {
+     MenuFrame(
+         contentSpacing = 4.dp,
++        // The menu is narrow, so there is no margin around its content. The only exception is the room at the bottom
++        // for the navigation (and the divider above it), which is drawn over the content when the toolbar is at the bottom.
+         contentModifier =
+             Modifier.padding(
+-                start = 8.dp,
+-                top =
+-                    if (accessPoint != MenuAccessPoint.Home && (isBottomToolbar || isExpandedToolbarEnabled)) {
+-                        0.dp
+-                    } else {
+-                        8.dp
+-                    },
+-                end = 8.dp,
+                 bottom =
+                     if (accessPoint != MenuAccessPoint.Home && (isBottomToolbar || isExpandedToolbarEnabled)) {
+-                        MenuNavigationTwoRowsHeight + 4.dp
++                        MenuNavigationTwoRowsHeight + 1.dp
+                     } else {
+-                        16.dp
++                        0.dp
+                     },
+             ),
+         scrollState = scrollState,
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuNavigation.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuNavigation.kt
+index 2912d352..7d287ffa 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuNavigation.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuNavigation.kt
+@@ -37,13 +37,12 @@ import org.mozilla.fenix.R
+ import org.mozilla.fenix.theme.FirefoxTheme
+ 
+ private val NavButtonHeight = 48.dp
+-private val NavVerticalPadding = 4.dp
+ 
+ /**
+  * The height of [MenuNavigation] when its buttons are in two rows. The menu pins the navigation to its bottom when the
+  * toolbar is at the bottom, so it has to leave this room at the end of its content.
+  */
+-internal val MenuNavigationTwoRowsHeight = NavButtonHeight * 2 + NavVerticalPadding * 2
++internal val MenuNavigationTwoRowsHeight = NavButtonHeight * 2
+ 
+ // Up to this many buttons are shown in a single row, more of them are split evenly into two rows.
+ private const val MAX_NAV_BUTTONS_IN_ONE_ROW = 3
+@@ -187,7 +186,6 @@ internal fun MenuNavigation(
+                             MaterialTheme.colorScheme.surface
+                         }
+                 )
+-                .padding(horizontal = 4.dp, vertical = NavVerticalPadding)
+                 .semantics(mergeDescendants = true) {
+                     contentDescription = navigationHeaderContentDescription
+                 },
