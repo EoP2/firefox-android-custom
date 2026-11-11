@@ -39,6 +39,9 @@
 #     CPU、网络、磁盘都长时间没有变化就判定卡住，抓取诊断（进程树、等待点、strace、Python 调用栈、
 #     网络连接）后终止，退出码 124。上一次 build.sh 里 mach 创建完 'build' 站点后卡了将近 6 小时、
 #     一行输出都没有，就是因为当时没有这个监视；现在再卡住大约 20 分钟后就会失败并给出原因。
+#   * Ubuntu 上 IronFox 默认跑不通 mach：它的 mozconfig 是 bash 写法，而 Ubuntu 的 sh 是 dash（报 “Illegal option -o pipefail”）。
+#     mach 159 在 mozconfig 加载失败后还会因为遥测回调抛异常而永远挂住（不是网络或编译慢）。
+#     解决办法是设置 IRONFOX_SH=/bin/bash，并在 get_sources 之后用一个自检步骤确认。
 #   * IronFox 版本固定为 ironfox_ref 的提交；换版本时 ironfox_ref、expected_commit、pipeline_id 三者必须同时改。
 #   * actions/checkout 的版本号请换成当前最新的大版本；upload-artifact 需要 v7 及以上才支持 `archive: false`。
 # ------------------------------------------------------------
@@ -84,6 +87,12 @@ env:
   IRONFOX_REPO: https://github.com/ironfox-oss/IronFox
   ARTIFACTS_URL: https://artifacts.ironfoxoss.org/ironfox
   YQ_VERSION: v4.44.3
+  # IronFox 的 mozconfig 是 bash 写法（set -euo pipefail、[[ ]]），而 mach 用 PATH 里的 `sh` 去执行它。
+  # IronFox 会把 IRONFOX_SH 指向的程序以 `sh` 的名字放进它自己的 PATH（IronFox/build/path）。
+  # 默认是 /bin/sh：Fedora 上它就是 bash（官方 CI 用的系统），Ubuntu 上却是 dash，
+  # 会报 “set: Illegal option -o pipefail” 导致 mozconfig 加载失败，mach 随后还会永远挂住。
+  # 所以这里指向 bash（以 sh 的名字运行时是 POSIX 模式，pipefail 和 [[ ]] 都支持）。
+  IRONFOX_SH: /bin/bash
 
 jobs:
   build:
@@ -297,6 +306,17 @@ jobs:
           bash "$GITHUB_WORKSPACE/mine/ironfox/watchdog.sh" ./scripts/get_sources.sh
           df -h / | tail -1
 
+      - name: 自检：IronFox 的 PATH 里的 sh 必须支持 pipefail 和 [[ ]]（mozconfig 需要）
+        working-directory: IronFox
+        run: |
+          set -euo pipefail
+          ls -l build/path/sh
+          if ! build/path/sh -c 'set -euo pipefail; [[ -z "${DEFINITELY_UNSET_VARIABLE+x}" ]]'; then
+            echo "::error::IronFox/build/path/sh 不支持 pipefail 或 [[ ]]（Ubuntu 的 sh 是 dash）。mach 会因此加载不了 mozconfig 并挂住。检查 IRONFOX_SH 是否指向 bash"
+            exit 1
+          fi
+          echo "sh 支持 pipefail 和 [[ ]]，OK"
+
       - name: prebuild.sh（检查并应用补丁，再做 IronFox 自己的改动）
         working-directory: IronFox
         env:
@@ -316,8 +336,9 @@ jobs:
         run: |
           # 注意：bundle 会先 assembleRelease（三个架构各一个 APK 加通用 APK），再 bundleRelease 出 AAB，
           # 所以 Fenix 实际要编两遍
-          # 上一次在这一步里，mach 创建完 'build' 站点后整整 5 小时 47 分没有任何输出，直到被 6 小时上限取消。
-          # 现在有了 watchdog.sh，再卡住的话大约 20 分钟后就会失败，并在日志里给出它在等什么
+          # 之前在这一步里，mach 创建完 'build' 站点后卡了将近 6 小时、一行输出都没有：根因是 mozconfig 加载失败
+          # （dash 不认 pipefail），之后 mach 在 finally 里永远等遥测回调（见文件头部说明）。已用 IRONFOX_SH 解决。
+          # 保留 watchdog.sh，以后无论什么原因卡住，大约 20 分钟后就会失败，并在日志里给出它在等什么
           bash "$GITHUB_WORKSPACE/mine/ironfox/watchdog.sh" ./scripts/build.sh bundle
           df -h / | tail -1
 
