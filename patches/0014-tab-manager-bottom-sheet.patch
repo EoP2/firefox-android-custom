@@ -1,5 +1,5 @@
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
-index 4797acfe..dd1cc928 100644
+index 4797acfe..ec62a461 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/TabManagementFragment.kt
 @@ -4,7 +4,9 @@
@@ -117,29 +117,17 @@ index 4797acfe..dd1cc928 100644
  
      private val animationDurationMs = 200
  
-@@ -221,6 +256,55 @@ class TabManagementFragment : Fragment() {
+@@ -221,6 +256,43 @@ class TabManagementFragment : Fragment() {
              )
      }
  
 +    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
 +        BottomSheetDialog(requireContext(), theme).apply {
 +            setOnShowListener {
-+                val bottomSheet = findViewById<View?>(materialR.id.design_bottom_sheet)
-+                bottomSheet?.setBackgroundResource(R.drawable.bottom_sheet_with_top_rounded_corners)
-+
-+                bottomSheetBehavior =
-+                    bottomSheet?.let {
-+                        BottomSheetBehavior.from(it).apply {
-+                            peekHeight = resources.displayMetrics.heightPixels
-+                            maxHeight = calculateSheetHeight()
-+                            skipCollapsed = true
-+                            state = BottomSheetBehavior.STATE_EXPANDED
-+                            hideFriction = SHEET_HIDING_FRICTION
-+                        }
-+                    }
-+
-+                // Setting the max height doesn't measure the sheet again by itself.
-+                bottomSheet?.requestLayout()
++                // The behavior of the sheet sets its own background when the sheet is laid out for the first time, so
++                // this has to be done after that.
++                findViewById<View?>(materialR.id.design_bottom_sheet)
++                    ?.setBackgroundResource(R.drawable.bottom_sheet_with_top_rounded_corners)
 +            }
 +        }
 +
@@ -173,7 +161,7 @@ index 4797acfe..dd1cc928 100644
      @OptIn(ExperimentalMaterial3Api::class)
      @Suppress("LongMethod", "CognitiveComplexMethod")
      override fun onCreateView(
-@@ -291,8 +375,6 @@ class TabManagementFragment : Fragment() {
+@@ -291,8 +363,6 @@ class TabManagementFragment : Fragment() {
              }
  
              FirefoxTheme(theme = TabManagerThemeProvider(selectedPage = state.selectedPage).provideTheme()) {
@@ -182,7 +170,7 @@ index 4797acfe..dd1cc928 100644
                  val transitionColor = MaterialTheme.colorScheme.surfaceContainer
  
                  val tabTrayVisibilityState = remember {
-@@ -329,46 +411,40 @@ class TabManagementFragment : Fragment() {
+@@ -329,46 +399,40 @@ class TabManagementFragment : Fragment() {
                      }
                  }
  
@@ -260,8 +248,23 @@ index 4797acfe..dd1cc928 100644
          }
      }
  
-@@ -881,8 +957,8 @@ class TabManagementFragment : Fragment() {
+@@ -879,10 +943,23 @@ class TabManagementFragment : Fragment() {
+         with(settings) { privateBrowsingLockedFeatureEnabled && shouldShowLockPbmBanner }
+ 
      override fun onStart() {
++        // The behavior of the sheet is set before the dialog is shown. The show listener of the dialog only runs after
++        // its first frame was already laid out and drawn, so the sheet would flash at full height for a moment.
++        dialog?.findViewById<View?>(materialR.id.design_bottom_sheet)?.let { bottomSheet ->
++            bottomSheetBehavior =
++                BottomSheetBehavior.from(bottomSheet).apply {
++                    peekHeight = resources.displayMetrics.heightPixels
++                    maxHeight = calculateSheetHeight()
++                    skipCollapsed = true
++                    state = BottomSheetBehavior.STATE_EXPANDED
++                    hideFriction = SHEET_HIDING_FRICTION
++                }
++        }
++
          super.onStart()
          recordBreadcrumb("TabManagementFragment onStart")
 -        findPreviousDialogFragment()?.let { dialog ->
@@ -271,7 +274,7 @@ index 4797acfe..dd1cc928 100644
          }
          requireComponents.appStore.dispatch(AppAction.UpdateTabsTrayVisibility(true))
      }
-@@ -923,7 +999,7 @@ class TabManagementFragment : Fragment() {
+@@ -923,7 +1000,7 @@ class TabManagementFragment : Fragment() {
                  SecureTabManagerBinding(
                      store = tabsTrayStore,
                      settings = requireComponents.settings,
@@ -280,7 +283,7 @@ index 4797acfe..dd1cc928 100644
                  ),
              owner = this,
              view = view,
-@@ -979,7 +1055,7 @@ class TabManagementFragment : Fragment() {
+@@ -979,7 +1056,7 @@ class TabManagementFragment : Fragment() {
      private fun showCancelledDownloadWarning(downloadCount: Int, tabId: String?, source: String?) {
          recordBreadcrumb("DownloadCancelDialogFragment show")
  
@@ -289,7 +292,7 @@ index 4797acfe..dd1cc928 100644
              DownloadCancelDialogFragment.newInstance(
                  downloadCount = downloadCount,
                  tabId = tabId,
-@@ -1002,7 +1078,7 @@ class TabManagementFragment : Fragment() {
+@@ -1002,7 +1079,7 @@ class TabManagementFragment : Fragment() {
                      ),
                  onPositiveButtonClicked = ::onCancelDownloadWarningAccepted,
              )
@@ -298,7 +301,7 @@ index 4797acfe..dd1cc928 100644
      }
  
      @UiThread
-@@ -1294,3 +1370,46 @@ private fun tabGroupDotColors(): Map<TabGroupTheme, Int> {
+@@ -1294,3 +1371,46 @@ private fun tabGroupDotColors(): Map<TabGroupTheme, Int> {
      }
      return colors
  }
