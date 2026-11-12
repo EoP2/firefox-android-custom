@@ -21,10 +21,13 @@
 #     * 勾选 allow_channel_mismatch 强行继续（没测过会出什么问题，不推荐）
 #
 # 签名：
-#   默认不用你的密钥签名。IronFox 在不签名时产出的 APK 文件名带 -debug-signed：Gradle 在本地构建时用 debug 密钥签了名
-#   （Fenix 的 build.gradle 里写明“本地构建就用 debug 签名”）。这样的 APK 可以直接安装，但 debug 密钥是 runner 上现生成的，
-#   每次构建大概率都不同，没法覆盖安装上一次的版本。要稳定的签名：本地用你自己的 keystore 重新签名（和你现在的做法一致），
-#   或者在 Actions 里签：勾选 sign，并在仓库 Settings -> Secrets 里配置
+#   默认不签名：产出真正未签名的 APK（放在 IronFox/outputs/unsigned/，文件名带 -unsigned），在本地用你自己的 keystore 签名：
+#     apksigner sign --ks <keystore> --out <输出.apk> <未签名.apk>      （IronFox 自己签名也是这样直接签）
+#   这里要绕一下：IronFox 在不签名（IRONFOX_SIGN=0）时不会给 Gradle 加 -PdisableDebugSigning，Gradle 就会按 Fenix 的默认行为
+#   用 debug 密钥签名（文件名带 -debug-signed，密钥是 runner 上现生成的、每次都不同），这不是我们想要的。
+#   而 IRONFOX_SIGN 是 IronFox 根据 4 个 keystore 变量是否都有值推导出来的，不能直接设置。所以不签名时：
+#   设置占位的 keystore 变量让它走 IRONFOX_SIGN=1 的路径（产出未签名 APK），再把 sign.sh 换成空操作（ironfox/skip-sign.sh）。
+#   想在 Actions 里签：勾选 sign，并在仓库 Settings -> Secrets 里配置
 #     ANDROID_KEYSTORE_BASE64   keystore 文件的 base64（base64 -w0 release.jks）
 #     ANDROID_KEYSTORE_PASSWORD keystore 口令
 #     ANDROID_KEY_ALIAS         密钥别名
@@ -74,7 +77,7 @@ on:
         type: boolean
         default: false
       sign:
-        description: "用仓库 secrets 里的 keystore 在 Actions 里签名（不勾选 = 产出用一次性 debug 密钥签的 APK，可安装但签名每次不同）"
+        description: "用仓库 secrets 里的 keystore 在 Actions 里签名（不勾选 = 产出真正未签名的 APK，在本地自己签）"
         type: boolean
         default: false
       locales:
@@ -246,6 +249,13 @@ jobs:
           set -euo pipefail
           bash mine/ironfox/register-patches.sh IronFox mine/ironfox/patches
 
+      - name: 不签名时：把 IronFox 的 sign.sh 换成空操作（保留未签名 APK）
+        if: ${{ !inputs.sign }}
+        run: |
+          set -euo pipefail
+          test -f IronFox/scripts/sign.sh
+          cp -v mine/ironfox/skip-sign.sh IronFox/scripts/sign.sh
+
       - name: 准备签名密钥
         if: ${{ inputs.sign }}
         env:
@@ -266,19 +276,34 @@ jobs:
           printf '%s' "$KS_B64" | base64 -d > "$RUNNER_TEMP/sign/release.jks"
           printf '%s' "$KS_PASS" > "$RUNNER_TEMP/sign/ks.pass"
           printf '%s' "$KEY_PASS" > "$RUNNER_TEMP/sign/key.pass"
+          # 注意：IRONFOX_SIGN 不能直接设置，IronFox 的 env_common.sh 会根据下面 4 个变量是否都有值来推导它
           {
-            echo "IRONFOX_SIGN=1"
             echo "IRONFOX_ANDROID_KEYSTORE=$RUNNER_TEMP/sign/release.jks"
             echo "IRONFOX_ANDROID_KEYSTORE_KEY_ALIAS=$KEY_ALIAS"
             echo "IRONFOX_ANDROID_KEYSTORE_PASS_FILE=$RUNNER_TEMP/sign/ks.pass"
             echo "IRONFOX_ANDROID_KEYSTORE_KEY_PASS_FILE=$RUNNER_TEMP/sign/key.pass"
           } >> "$GITHUB_ENV"
 
-      - name: 其它构建选项（跳过交互提问、占位密钥文件、语言）
+      - name: 其它构建选项（跳过交互提问、占位密钥文件、不签名时的占位 keystore、语言）
         env:
           LOCALES: ${{ inputs.locales }}
+          SIGN: ${{ inputs.sign }}
         run: |
           set -euo pipefail
+
+          # 不勾选 sign 时：产出真正未签名的 APK，而不是 debug 密钥签名的。
+          # IronFox 只有在 IRONFOX_SIGN=1 时才会给 Gradle 加 -PdisableDebugSigning；而 IRONFOX_SIGN 是根据
+          # 4 个 keystore 变量是否都有值推导出来的（不能直接设置）。所以这里给它们占位值，
+          # 并在后面的步骤里把 sign.sh 换成空操作——这 4 个变量除了 sign.sh 没有别处会读取内容。
+          if [ "$SIGN" != "true" ]; then
+            {
+              echo "IRONFOX_ANDROID_KEYSTORE=$RUNNER_TEMP/unused/keystore.jks"
+              echo "IRONFOX_ANDROID_KEYSTORE_PASS_FILE=$RUNNER_TEMP/unused/keystore.pass"
+              echo "IRONFOX_ANDROID_KEYSTORE_KEY_ALIAS=unused"
+              echo "IRONFOX_ANDROID_KEYSTORE_KEY_PASS_FILE=$RUNNER_TEMP/unused/key.pass"
+            } >> "$GITHUB_ENV"
+            echo "不签名：已设置占位的 keystore 变量（IRONFOX_SIGN 会因此变为 1，Gradle 产出未签名 APK）"
+          fi
           # 本地构建时 build.sh 签名后会问要不要用 adb 安装，Actions 里没有终端可输入，必须跳过
           echo "IRONFOX_SIGN_SKIP_ADB=1" >> "$GITHUB_ENV"
 
@@ -352,19 +377,24 @@ jobs:
           set -euo pipefail
           echo "== IronFox/outputs =="
           find IronFox/outputs -type f -printf '%10s  %p\n' | sort -k2
-          # 文件名有两种：签名时是 ironfox-<版本>-arm64-v8a.apk；不签名时 IronFox 会加上 -debug-signed 后缀。
+          # 签名时（sign=true）：产物在 outputs/apk/，名字是 ironfox-<版本>-arm64-v8a.apk。
+          # 不签名时：真正未签名的 APK 在 outputs/unsigned/，名字是 ironfox-<版本>-arm64-v8a-unsigned.apk。
           # Nightly 渠道的名字里还多一段 -nightly，所以用通配符 *arm64-v8a*.apk
-          mapfile -t apks < <(find IronFox/outputs/apk -maxdepth 1 -type f -name '*arm64-v8a*.apk')
-          echo "找到 ${#apks[@]} 个 arm64 APK"
+          if [ "$SIGN" = "true" ]; then dir=IronFox/outputs/apk; else dir=IronFox/outputs/unsigned; fi
+          mapfile -t apks < <(find "$dir" -maxdepth 1 -type f -name '*arm64-v8a*.apk')
+          echo "在 $dir 里找到 ${#apks[@]} 个 arm64 APK"
           if [ "${#apks[@]}" -ne 1 ]; then
             echo "::error::期望恰好 1 个 arm64 APK，实际 ${#apks[@]} 个"
+            if [ "$SIGN" != "true" ] && ls IronFox/outputs/apk/*debug-signed*.apk > /dev/null 2>&1; then
+              echo "::error::outputs/apk/ 里出现了带 -debug-signed 的 APK：说明 IRONFOX_SIGN 没有变成 1（占位的 keystore 变量没生效？），Gradle 仍然用 debug 密钥签了名"
+            fi
             exit 1
           fi
           mkdir -p out
           cp -v "${apks[0]}" out/
           echo "path=out/$(basename "${apks[0]}")" >> "$GITHUB_OUTPUT"
           if [ "$SIGN" != "true" ]; then
-            echo "::notice::这个 APK 没有用你的密钥签名：Gradle 在本地构建时用 debug 密钥签了名（文件名里的 debug-signed），可以直接安装，但这把密钥是这台 runner 上现生成的，每次构建大概率都不同，没法覆盖安装上一次的版本。要稳定的签名，请用你自己的 keystore 重新签名，或勾选 sign"
+            echo "::notice::这是【未签名】的 APK，不能直接安装，请先用你自己的 keystore 签名：apksigner sign --ks <keystore> --out <输出.apk> <这个文件>。IronFox 自己签名时也是直接对这个文件执行 apksigner sign，没有额外的 zipalign"
           fi
 
       - name: 上传 arm64 APK（不打包成 zip）
@@ -382,6 +412,7 @@ jobs:
         with:
           name: ironfox-all-outputs
           path: |
+            IronFox/outputs/unsigned
             IronFox/outputs/apk
             IronFox/outputs/apks
             IronFox/outputs/aab
@@ -393,7 +424,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ironfox-arm64-fallback
-          path: IronFox/outputs/apk/*arm64-v8a*.apk
+          path: |
+            IronFox/outputs/unsigned/*arm64-v8a*.apk
+            IronFox/outputs/apk/*arm64-v8a*.apk
           if-no-files-found: ignore
           retention-days: 7
 
