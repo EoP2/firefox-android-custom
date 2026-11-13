@@ -1,0 +1,156 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
+index 7f54ef42..4c46b657 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
+@@ -27,8 +27,7 @@ import androidx.compose.animation.togetherWith
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.width
+ import androidx.compose.foundation.rememberScrollState
+-import androidx.compose.foundation.shape.CornerSize
+-import androidx.compose.material3.MaterialTheme
++import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material3.SnackbarHostState
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.getValue
+@@ -37,6 +36,7 @@ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.dimensionResource
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.unit.dp
+ import androidx.coordinatorlayout.widget.CoordinatorLayout
+@@ -206,7 +206,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+                             insets
+                         }
+                     }
+-                    bottomSheet?.setBackgroundResource(R.drawable.bottom_sheet_with_top_rounded_corners)
++                    bottomSheet?.setBackgroundResource(R.drawable.main_menu_sheet_background)
+ 
+                     // https://bugzilla.mozilla.org/show_bug.cgi?id=1982004
+                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+@@ -311,12 +311,13 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+                                 !settings.shouldUseExpandedToolbar &&
+                                 (isExtensionsExpanded || isMoreMenuExpanded) &&
+                                 args.accesspoint == MenuAccessPoint.Browser,
++                        visible = false,
+                     ),
+                 snackbarHostState = snackbarHostState,
+                 cornerShape =
+-                    MaterialTheme.shapes.large.copy(
+-                        bottomStart = CornerSize(0.dp),
+-                        bottomEnd = CornerSize(0.dp),
++                    RoundedCornerShape(
++                        topStart = dimensionResource(id = R.dimen.main_menu_sheet_corner_radius),
++                        topEnd = dimensionResource(id = R.dimen.main_menu_sheet_corner_radius),
+                     ),
+             ) {
+                 val syncStore = components.backgroundServices.syncStore
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt
+index 98cd97e4..bea84a97 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt
+@@ -21,8 +21,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.width
+-import androidx.compose.foundation.shape.CornerSize
+-import androidx.compose.material3.MaterialTheme
++import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material3.SnackbarHostState
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.getValue
+@@ -40,6 +39,7 @@ import androidx.compose.ui.input.pointer.PointerId
+ import androidx.compose.ui.input.pointer.PointerInputScope
+ import androidx.compose.ui.input.pointer.pointerInput
+ import androidx.compose.ui.platform.LocalHapticFeedback
++import androidx.compose.ui.res.dimensionResource
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.unit.dp
+ import androidx.coordinatorlayout.widget.CoordinatorLayout
+@@ -128,7 +128,7 @@ class MenuFragment : BottomSheetDialogFragment() {
+                             insets
+                         }
+                     }
+-                    bottomSheet?.setBackgroundResource(R.drawable.bottom_sheet_with_top_rounded_corners)
++                    bottomSheet?.setBackgroundResource(R.drawable.main_menu_sheet_background)
+ 
+                     // https://bugzilla.mozilla.org/show_bug.cgi?id=1982004
+                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+@@ -261,12 +261,13 @@ class MenuFragment : BottomSheetDialogFragment() {
+                                     }
+                                 ),
+                             useDarkBackground = isHeaderDark,
++                            visible = false,
+                         ),
+                     snackbarHostState = snackbarHostState,
+                     cornerShape =
+-                        MaterialTheme.shapes.large.copy(
+-                            bottomStart = CornerSize(0.dp),
+-                            bottomEnd = CornerSize(0.dp),
++                        RoundedCornerShape(
++                            topStart = dimensionResource(id = R.dimen.main_menu_sheet_corner_radius),
++                            topEnd = dimensionResource(id = R.dimen.main_menu_sheet_corner_radius),
+                         ),
+                 ) {
+                     Menu(
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuDialogBottomSheet.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuDialogBottomSheet.kt
+index 7212aa61..22f8f01f 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuDialogBottomSheet.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuDialogBottomSheet.kt
+@@ -17,12 +17,14 @@ import androidx.compose.material3.SnackbarHostState
+ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.Shape
+ import androidx.compose.ui.input.nestedscroll.nestedScroll
+ import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
+ import androidx.compose.ui.unit.dp
+ import mozilla.components.compose.base.BottomSheetHandle
++import mozilla.components.compose.base.modifier.thenConditional
+ 
+ /**
+  * The menu dialog bottom sheet.
+@@ -54,6 +56,9 @@ fun MenuDialogBottomSheet(
+                         color = MaterialTheme.colorScheme.surface,
+                         shape = cornerShape,
+                     )
++                    // Without the handle row nothing keeps the content (for example the header that turns darker
++                    // while a submenu is open) away from the rounded top corners, so the content is clipped to them.
++                    .thenConditional(Modifier.clip(shape = cornerShape)) { !menuHandleState.visible }
+                     .nestedScroll(rememberNestedScrollInteropConnection())
+         ) {
+             if (menuHandleState.visible) {
+diff --git a/mobile/android/fenix/app/src/main/res/drawable/main_menu_sheet_background.xml b/mobile/android/fenix/app/src/main/res/drawable/main_menu_sheet_background.xml
+new file mode 100644
+index 00000000..0e7ab86f
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/res/drawable/main_menu_sheet_background.xml
+@@ -0,0 +1,12 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- This Source Code Form is subject to the terms of the Mozilla Public
++   - License, v. 2.0. If a copy of the MPL was not distributed with this
++   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
++
++<shape xmlns:android="http://schemas.android.com/apk/res/android"
++    android:shape="rectangle">
++    <corners
++        android:topLeftRadius="@dimen/main_menu_sheet_corner_radius"
++        android:topRightRadius="@dimen/main_menu_sheet_corner_radius" />
++    <solid android:color="?attr/colorSurface" />
++</shape>
+diff --git a/mobile/android/fenix/app/src/main/res/values/dimens.xml b/mobile/android/fenix/app/src/main/res/values/dimens.xml
+index 651291d9..a4649cd9 100644
+--- a/mobile/android/fenix/app/src/main/res/values/dimens.xml
++++ b/mobile/android/fenix/app/src/main/res/values/dimens.xml
+@@ -57,6 +57,8 @@
+     <!-- Bottom Sheet Fragment card -->
+     <dimen name="bottom_sheet_corner_radius">8dp</dimen>
+     <dimen name="bottom_sheet_corner_radius_28dp">28dp</dimen>
++    <!-- Top corner radius of the main menu sheet: read by its background drawable and by its Compose shape. -->
++    <dimen name="main_menu_sheet_corner_radius">8dp</dimen>
+     <dimen name="bottom_sheet_handle_height">4dp</dimen>
+     <dimen name="bottom_sheet_handle_top_margin">8dp</dimen>
+ 

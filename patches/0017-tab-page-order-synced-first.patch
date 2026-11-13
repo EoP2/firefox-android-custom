@@ -1,0 +1,83 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/state/Page.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/state/Page.kt
+index 500ba6b8..9846b251 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/state/Page.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/redux/state/Page.kt
+@@ -27,10 +27,10 @@ enum class Page {
+          */
+         fun visiblePages(shouldShowTabGroupsPage: Boolean): List<Page> =
+             listOfNotNull(
+-                PrivateTabs,
++                SyncedTabs,
+                 NormalTabs,
+                 TabGroups.takeIf { shouldShowTabGroupsPage },
+-                SyncedTabs,
++                PrivateTabs,
+             )
+ 
+         /**
+@@ -41,10 +41,10 @@ enum class Page {
+          */
+         fun positionToPage(position: Int, shouldShowTabGroupsPage: Boolean = false): Page {
+             return when {
+-                position == 0 -> PrivateTabs
++                position == 0 -> SyncedTabs
+                 position == 1 -> NormalTabs
+                 shouldShowTabGroupsPage && position == 2 -> TabGroups
+-                else -> SyncedTabs
++                else -> PrivateTabs
+             }
+         }
+ 
+@@ -56,10 +56,10 @@ enum class Page {
+          */
+         fun pageToPosition(page: Page, shouldShowTabGroupsPage: Boolean = false): Int {
+             return when (page) {
+-                PrivateTabs -> 0
++                SyncedTabs -> 0
+                 NormalTabs -> 1
+                 TabGroups -> if (shouldShowTabGroupsPage) 2 else 1
+-                SyncedTabs -> visiblePages(shouldShowTabGroupsPage).lastIndex
++                PrivateTabs -> visiblePages(shouldShowTabGroupsPage).lastIndex
+             }
+         }
+     }
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/banner/TabsTrayBanner.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/banner/TabsTrayBanner.kt
+index b0a0fd15..92fe2e42 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/banner/TabsTrayBanner.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/tabstray/ui/banner/TabsTrayBanner.kt
+@@ -343,12 +343,12 @@ private fun TabPageBannerTabs(
+         )
+ 
+     BannerTab(
+-        selected = selectedPage == Page.PrivateTabs,
+-        testTag = TabsTrayTestTag.PRIVATE_TABS_PAGE_BUTTON,
+-        contentDescription = privateTabDescription,
+-        onClick = { onTabPageIndicatorClicked(Page.PrivateTabs) },
++        selected = selectedPage == Page.SyncedTabs,
++        testTag = TabsTrayTestTag.SYNCED_TABS_PAGE_BUTTON,
++        contentDescription = syncedTabDescription,
++        onClick = { onTabPageIndicatorClicked(Page.SyncedTabs) },
+     ) {
+-        Icon(painterResource(iconsR.drawable.mozac_ic_private_mode_24), null)
++        Icon(painterResource(iconsR.drawable.mozac_ic_sync_tabs_24), null)
+     }
+ 
+     BannerTab(
+@@ -379,12 +379,12 @@ private fun TabPageBannerTabs(
+     }
+ 
+     BannerTab(
+-        selected = selectedPage == Page.SyncedTabs,
+-        testTag = TabsTrayTestTag.SYNCED_TABS_PAGE_BUTTON,
+-        contentDescription = syncedTabDescription,
+-        onClick = { onTabPageIndicatorClicked(Page.SyncedTabs) },
++        selected = selectedPage == Page.PrivateTabs,
++        testTag = TabsTrayTestTag.PRIVATE_TABS_PAGE_BUTTON,
++        contentDescription = privateTabDescription,
++        onClick = { onTabPageIndicatorClicked(Page.PrivateTabs) },
+     ) {
+-        Icon(painterResource(iconsR.drawable.mozac_ic_sync_tabs_24), null)
++        Icon(painterResource(iconsR.drawable.mozac_ic_private_mode_24), null)
+     }
+ }
+ 
