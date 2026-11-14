@@ -1,22 +1,22 @@
 diff --git a/mobile/android/android-components/components/compose/base/src/main/java/mozilla/components/compose/base/theme/AcornColors.kt b/mobile/android/android-components/components/compose/base/src/main/java/mozilla/components/compose/base/theme/AcornColors.kt
-index 931fcde2..5b37357f 100644
+index 931fcde20..8b26430ac 100644
 --- a/mobile/android/android-components/components/compose/base/src/main/java/mozilla/components/compose/base/theme/AcornColors.kt
 +++ b/mobile/android/android-components/components/compose/base/src/main/java/mozilla/components/compose/base/theme/AcornColors.kt
 @@ -191,6 +191,18 @@ class AcornColors(
          )
  }
  
-+// Background ramp of the dark theme, darkest to lightest. To make it lighter or darker, only change the colors on
-+// these 7 lines (add or subtract the same amount from R, G and B). Keep them in sync with the custom_dark_* colors
-+// in Fenix's res/values-night/colors.xml. They have to stay above darkColorPalette, because top-level properties
-+// are initialized in the order they are written.
-+private val DarkBgLowest = Color(0xFF2B2A2E)
-+private val DarkBgLow = Color(0xFF353438)
-+private val DarkBg = Color(0xFF3F3E42)
-+private val DarkBgHigh = Color(0xFF48474B)
-+private val DarkBgHighest = Color(0xFF515054)
-+private val DarkBgSelected = Color(0xFF67666A)
-+private val DarkOutlineVariant = Color(0xFF67666A)
++// Background ramp of the dark theme, darkest to lightest, using the same Photon dark greys as Firefox 146. To make it
++// lighter or darker, only change the DarkGrey step on these 7 lines (a smaller number is lighter: 90, 80 ... 10, 05).
++// Keep them in sync with the custom_dark_* colors in Fenix's res/values-night/colors.xml. They have to stay above
++// darkColorPalette, because top-level properties are initialized in the order they are written.
++private val DarkBgLowest = PhotonColors.DarkGrey80
++private val DarkBgLow = PhotonColors.DarkGrey70
++private val DarkBg = PhotonColors.DarkGrey60
++private val DarkBgHigh = PhotonColors.DarkGrey50
++private val DarkBgHighest = PhotonColors.DarkGrey40
++private val DarkBgSelected = PhotonColors.DarkGrey30
++private val DarkOutlineVariant = PhotonColors.DarkGrey05
 +
  val darkColorPalette =
      AcornColors(
@@ -27,7 +27,7 @@ index 931fcde2..5b37357f 100644
          onWarningContainer = NovaColors.VioletDesaturated0,
 -        surfaceDimVariant = NovaColors.Gray80,
 -        surfaceContainerSelected = NovaColors.Gray55,
-+        surfaceDimVariant = DarkBgLow,
++        surfaceDimVariant = DarkBgLowest,
 +        surfaceContainerSelected = DarkBgSelected,
          autofillText = NovaColors.VioletDesaturated30A55,
          selectedText = NovaColors.Gray45A80,
@@ -77,28 +77,29 @@ index 931fcde2..5b37357f 100644
  
  /** Returns a light Material color scheme mapped from Acorn. */
 diff --git a/mobile/android/fenix/app/src/main/res/values-night/colors.xml b/mobile/android/fenix/app/src/main/res/values-night/colors.xml
-index af1f96f7..79396f06 100644
+index af1f96f7d..0e4b2b506 100644
 --- a/mobile/android/fenix/app/src/main/res/values-night/colors.xml
 +++ b/mobile/android/fenix/app/src/main/res/values-night/colors.xml
-@@ -3,6 +3,17 @@
+@@ -3,6 +3,18 @@
     - License, v. 2.0. If a copy of the MPL was not distributed with this
     - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
  <resources xmlns:tools="http://schemas.android.com/tools">
-+    <!-- Background ramp of the dark theme, darkest to lightest. To make it lighter or darker, only change the hex
-+         values on these 7 lines (add or subtract the same amount from R, G and B). AcornColors.kt has the same 7
-+         values for Compose; keep both in sync. -->
-+    <color name="custom_dark_bg_lowest">#FF2B2A2E</color>
-+    <color name="custom_dark_bg_low">#FF353438</color>
-+    <color name="custom_dark_bg">#FF3F3E42</color>
-+    <color name="custom_dark_bg_high">#FF48474B</color>
-+    <color name="custom_dark_bg_highest">#FF515054</color>
-+    <color name="custom_dark_bg_selected">#FF67666A</color>
-+    <color name="custom_dark_outline_variant">#FF67666A</color>
++    <!-- Background ramp of the dark theme, darkest to lightest. The steps are the same Photon dark greys that
++         Firefox 146 used. To make it lighter or darker, only change the photonDarkGrey step on these 7 lines (a
++         smaller number is lighter: 90, 80, 70 ... 20, 10, 05). AcornColors.kt has the same 7 values for Compose;
++         keep both in sync. -->
++    <color name="custom_dark_bg_lowest">@color/photonDarkGrey80</color>
++    <color name="custom_dark_bg_low">@color/photonDarkGrey70</color>
++    <color name="custom_dark_bg">@color/photonDarkGrey60</color>
++    <color name="custom_dark_bg_high">@color/photonDarkGrey50</color>
++    <color name="custom_dark_bg_highest">@color/photonDarkGrey40</color>
++    <color name="custom_dark_bg_selected">@color/photonDarkGrey30</color>
++    <color name="custom_dark_outline_variant">@color/photonDarkGrey05</color>
 +
      <!-- Material3 color variables -->
      <color name="fx_mobile_primary">@color/novaViolet20</color>
      <color name="fx_mobile_on_primary">@color/novaGray80</color>
-@@ -17,11 +28,11 @@
+@@ -17,11 +29,11 @@
      <color name="fx_mobile_on_tertiary">@color/novaGray80</color>
      <color name="fx_mobile_tertiary_container">@color/novaVioletDesaturated90</color>
      <color name="fx_mobile_on_tertiary_container">@color/novaVioletDesaturated0</color>
@@ -113,7 +114,7 @@ index af1f96f7..79396f06 100644
      <color name="fx_mobile_on_surface_variant">@color/novaVioletDesaturated0A70</color>
      <color name="fx_mobile_surface_inverse">@color/novaGray30</color>
      <color name="fx_mobile_on_surface_inverse">@color/novaGray80</color>
-@@ -42,16 +53,16 @@
+@@ -42,16 +54,16 @@
      <color name="fx_mobile_warning_container">@color/novaYellow70</color>
      <color name="fx_mobile_on_warning_container">@color/novaVioletDesaturated0</color>
      <color name="fx_mobile_outline">@color/novaGray45</color>
@@ -140,7 +141,7 @@ index af1f96f7..79396f06 100644
      <color name="fx_mobile_autofill_text">@color/novaVioletDesaturated30A55</color>
      <color name="fx_mobile_selected_text">@color/novaGray45A80</color>
      <color name="fx_mobile_icon_private">@color/novaViolet50</color>
-@@ -106,10 +117,13 @@
+@@ -106,10 +118,13 @@
      <color name="protections_dashboard_gradient_end">@color/novaOrange70</color>
  
      <!-- Colors for Edge to Edge background  -->
@@ -148,13 +149,13 @@ index af1f96f7..79396f06 100644
 -    <color name="homepage_edge_to_edge_gradient_end">#FF293564</color>
 -    <color name="homepage_tab_edge_to_edge_tab_strip_item_background_active">#213B6F</color>
 -    <color name="homepage_tab_edge_to_edge_tab_strip_item_background_inactive">#0E1A40</color>
-+    <!-- Lightened and desaturated; the original dark blues were #0A1A3B, #293564, #213B6F and #0E1A40.
-+         The address bar (custom_dark_bg_highest) is drawn on top of this gradient, so keep the gradient end a
-+         little lighter than it, or the bar blends into the background. -->
-+    <color name="homepage_edge_to_edge_gradient_start">#FF3C3E4B</color>
-+    <color name="homepage_edge_to_edge_gradient_end">#FF57586A</color>
-+    <color name="homepage_tab_edge_to_edge_tab_strip_item_background_active">#5A5D71</color>
-+    <color name="homepage_tab_edge_to_edge_tab_strip_item_background_inactive">#3F3F4E</color>
++    <!-- The top of the gradient matches the page background. The address bar (custom_dark_bg_highest) is drawn on
++         top of the gradient, so keep the gradient end a little lighter than it, or the bar blends into the
++         background. The tab strip colors are the ones Firefox 146 used (tabActive and tabInactive). -->
++    <color name="homepage_edge_to_edge_gradient_start">@color/custom_dark_bg</color>
++    <color name="homepage_edge_to_edge_gradient_end">@color/photonDarkGrey30</color>
++    <color name="homepage_tab_edge_to_edge_tab_strip_item_background_active">@color/photonDarkGrey30</color>
++    <color name="homepage_tab_edge_to_edge_tab_strip_item_background_inactive">@color/photonDarkGrey80</color>
      <color name="homepage_tab_edge_to_edge_toolbar_background">#00000000</color>
      <color name="homepage_tab_edge_to_edge_toolbar_outline">#00000000</color>
  
