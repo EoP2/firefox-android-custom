@@ -1,0 +1,128 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
+index 25211dc6..20441342 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
+@@ -553,7 +553,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+                                 isDownloadHighlighted = isDownloadHighlighted,
+                                 webExtensionMenuCount = webExtensionsCount,
+                                 isAllWebExtensionsDisabled = isAllWebExtensionsDisabled,
+-                                showIPProtection = components.ipProtection.store.state.isEligible,
++                                showIPProtection = false,
+                                 showPasswords = settings.isAutofillSupported,
+                                 ipProtectionMenuState = ipProtectionMenuState,
+                                 onMozillaAccountButtonClick = {
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/BrowserToolbarMiddleware.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/BrowserToolbarMiddleware.kt
+index 539fe743..2a4cf907 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/BrowserToolbarMiddleware.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/BrowserToolbarMiddleware.kt
+@@ -1478,43 +1478,13 @@ class BrowserToolbarMiddleware(
+         onClick: BrowserToolbarInteraction,
+         testTag: String? = null,
+     ): Action {
+-        val ipProtectionState = ipProtectionStore.state
+-        return when {
+-            ipProtectionState.proxyStatus == Authorized.Active ->
+-                Action.AnimatedPillActionRes(
+-                    iconResId = drawableResId,
+-                    overlayResId = iconsR.drawable.mozac_ic_globe_24,
+-                    textResId = R.string.ip_protection_toolbar_pill_label,
+-                    contentDescriptionResId = R.string.ip_protection_toolbar_pill_description,
+-                    animated = ipProtectionState.proxyActivation == ProxyActivation.TurningOn,
+-                    highlighted = highlighted,
+-                    onClick = onClick,
+-                    testTag = testTag,
+-                    onAnimationFinished = StartPageActions.ProxyActivationAnimationFinished,
+-                )
+-
+-            ipProtectionState.proxyActivation == ProxyActivation.TurningOff ->
+-                Action.AnimatedPillActionRes(
+-                    iconResId = drawableResId,
+-                    overlayResId = iconsR.drawable.mozac_ic_globe_24,
+-                    textResId = R.string.ip_protection_toolbar_pill_label_off,
+-                    contentDescriptionResId = R.string.ip_protection_toolbar_pill_description_off,
+-                    animated = true,
+-                    highlighted = highlighted,
+-                    onClick = onClick,
+-                    testTag = testTag,
+-                    onAnimationFinished = StartPageActions.ProxyActivationAnimationFinished,
+-                )
+-
+-            else ->
+-                ActionButtonRes(
+-                    drawableResId = drawableResId,
+-                    contentDescription = contentDescription,
+-                    highlighted = highlighted,
+-                    onClick = onClick,
+-                    testTag = testTag,
+-                )
+-        }
++        return ActionButtonRes(
++            drawableResId = drawableResId,
++            contentDescription = contentDescription,
++            highlighted = highlighted,
++            onClick = onClick,
++            testTag = testTag,
++        )
+     }
+ 
+     private fun buildShortcutLongPressMenu(source: Source) =
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/CustomTabBrowserToolbarMiddleware.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/CustomTabBrowserToolbarMiddleware.kt
+index 87ae74ce..9517f2af 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/CustomTabBrowserToolbarMiddleware.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/toolbar/CustomTabBrowserToolbarMiddleware.kt
+@@ -487,37 +487,11 @@ class CustomTabBrowserToolbarMiddleware(
+         contentDescription: Int,
+         onClick: BrowserToolbarInteraction,
+     ): Action {
+-        val ipProtectionState = ipProtectionStore.state
+-        return when {
+-            ipProtectionState.proxyStatus == Authorized.Active ->
+-                Action.AnimatedPillActionRes(
+-                    iconResId = drawableResId,
+-                    overlayResId = iconsR.drawable.mozac_ic_globe_24,
+-                    textResId = R.string.ip_protection_toolbar_pill_label,
+-                    contentDescriptionResId = R.string.ip_protection_toolbar_pill_description,
+-                    animated = ipProtectionState.proxyActivation == ProxyActivation.TurningOn,
+-                    onClick = onClick,
+-                    onAnimationFinished = StartPageActions.ProxyActivationAnimationFinished,
+-                )
+-
+-            ipProtectionState.proxyActivation == ProxyActivation.TurningOff ->
+-                Action.AnimatedPillActionRes(
+-                    iconResId = drawableResId,
+-                    overlayResId = iconsR.drawable.mozac_ic_globe_24,
+-                    textResId = R.string.ip_protection_toolbar_pill_label_off,
+-                    contentDescriptionResId = R.string.ip_protection_toolbar_pill_description_off,
+-                    animated = true,
+-                    onClick = onClick,
+-                    onAnimationFinished = StartPageActions.ProxyActivationAnimationFinished,
+-                )
+-
+-            else ->
+-                ActionButtonRes(
+-                    drawableResId = drawableResId,
+-                    contentDescription = contentDescription,
+-                    onClick = onClick,
+-                )
+-        }
++        return ActionButtonRes(
++            drawableResId = drawableResId,
++            contentDescription = contentDescription,
++            onClick = onClick,
++        )
+     }
+ 
+     private fun buildEndPageActions(customTab: CustomTabSessionState?): List<ActionButton> {
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/settings/trustpanel/TrustPanelFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/settings/trustpanel/TrustPanelFragment.kt
+index 59ddc66a..e3785642 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/settings/trustpanel/TrustPanelFragment.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/settings/trustpanel/TrustPanelFragment.kt
+@@ -267,7 +267,7 @@ class TrustPanelFragment : BottomSheetDialogFragment() {
+                 }
+                     .collectAsState(initial = listOf())
+                 val isGlobalTrackingProtectionEnabled = settings.shouldUseTrackingProtection
+-                val showIpProtection = components.ipProtection.store.state.isEligible
++                val showIpProtection = false
+                 val ipProtectionMenuState by remember {
+                     store.stateFlow.map { state -> state.ipProtectionMenuState }
+                 }

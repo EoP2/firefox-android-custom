@@ -1,0 +1,76 @@
+diff --git a/mobile/android/android-components/components/feature/contextmenu/src/main/java/mozilla/components/feature/contextmenu/ContextMenuFeature.kt b/mobile/android/android-components/components/feature/contextmenu/src/main/java/mozilla/components/feature/contextmenu/ContextMenuFeature.kt
+index d1cd37b3..84449c20 100644
+--- a/mobile/android/android-components/components/feature/contextmenu/src/main/java/mozilla/components/feature/contextmenu/ContextMenuFeature.kt
++++ b/mobile/android/android-components/components/feature/contextmenu/src/main/java/mozilla/components/feature/contextmenu/ContextMenuFeature.kt
+@@ -29,6 +29,13 @@ import mozilla.components.support.base.feature.LifecycleAwareFeature
+ @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+ internal const val FRAGMENT_TAG = "mozac_feature_contextmenu_dialog"
+ 
++// Context menu items that are never shown, no matter which candidates the app registers.
++private val HIDDEN_CANDIDATE_IDS =
++    setOf(
++        "mozac.feature.contextmenu.share_link",
++        "mozac.feature.contextmenu.share_image",
++    )
++
+ /**
+  * Feature for displaying a context menu after long-pressing web content.
+  *
+@@ -99,7 +106,7 @@ class ContextMenuFeature(
+ 
+         val (ids, labels) =
+             candidates
+-                .filter { candidate -> candidate.showFor(tab, hitResult) }
++                .filter { candidate -> candidate.id !in HIDDEN_CANDIDATE_IDS && candidate.showFor(tab, hitResult) }
+                 .fold(Pair(mutableListOf<String>(), mutableListOf<String>())) { items, candidate ->
+                     items.first.add(candidate.id)
+                     items.second.add(candidate.label)
+diff --git a/mobile/android/android-components/components/feature/contextmenu/src/main/java/mozilla/components/feature/contextmenu/ContextMenuFragment.kt b/mobile/android/android-components/components/feature/contextmenu/src/main/java/mozilla/components/feature/contextmenu/ContextMenuFragment.kt
+index 2e182105..5d3b51bb 100644
+--- a/mobile/android/android-components/components/feature/contextmenu/src/main/java/mozilla/components/feature/contextmenu/ContextMenuFragment.kt
++++ b/mobile/android/android-components/components/feature/contextmenu/src/main/java/mozilla/components/feature/contextmenu/ContextMenuFragment.kt
+@@ -20,6 +20,7 @@ import androidx.fragment.app.DialogFragment
+ import androidx.recyclerview.widget.LinearLayoutManager
+ import androidx.recyclerview.widget.RecyclerView
+ import com.google.android.material.dialog.MaterialAlertDialogBuilder
++import com.google.android.material.shape.MaterialShapeDrawable
+ import com.google.android.material.textview.MaterialTextView
+ import mozilla.components.browser.state.state.SessionState
+ 
+@@ -29,6 +30,7 @@ private const val KEY_SESSION_ID = "session_id"
+ private const val KEY_IDS = "ids"
+ private const val KEY_LABELS = "labels"
+ private const val KEY_ADDITIONAL_NOTE = "additional_note"
++private const val CORNER_RADIUS_DP = 4f
+ 
+ /** [DialogFragment] implementation to display the actual context menu dialog. */
+ class ContextMenuFragment : DialogFragment() {
+@@ -67,6 +69,12 @@ class ContextMenuFragment : DialogFragment() {
+                 .setCustomTitle(createDialogTitleView(inflater))
+                 .setView(createDialogContentView(inflater))
+ 
++        // Use small corners instead of the large default Material dialog corners.
++        (builder.background as? MaterialShapeDrawable)?.let { background ->
++            val cornerRadiusPx = CORNER_RADIUS_DP * requireContext().resources.displayMetrics.density
++            background.shapeAppearanceModel = background.shapeAppearanceModel.withCornerSize(cornerRadiusPx)
++        }
++
+         return builder.create()
+     }
+ 
+diff --git a/mobile/android/android-components/components/feature/contextmenu/src/main/res/layout/mozac_feature_contextmenu_title.xml b/mobile/android/android-components/components/feature/contextmenu/src/main/res/layout/mozac_feature_contextmenu_title.xml
+index 57319ac7..f6190c8d 100644
+--- a/mobile/android/android-components/components/feature/contextmenu/src/main/res/layout/mozac_feature_contextmenu_title.xml
++++ b/mobile/android/android-components/components/feature/contextmenu/src/main/res/layout/mozac_feature_contextmenu_title.xml
+@@ -13,9 +13,9 @@
+     android:gravity="center_vertical"
+     android:maxLines="2"
+     android:paddingStart="16dp"
+-    android:paddingTop="16dp"
++    android:paddingTop="8dp"
+     android:paddingEnd="8dp"
+-    android:paddingBottom="16dp"
++    android:paddingBottom="4dp"
+     app:autoSizeMaxTextSize="20sp"
+     app:autoSizeMinTextSize="12sp"
+     app:autoSizeStepGranularity="2sp"

@@ -1,0 +1,186 @@
+diff --git a/mobile/android/android-components/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/BrowserEditToolbar.kt b/mobile/android/android-components/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/BrowserEditToolbar.kt
+index dc1dd162..ca4b8520 100644
+--- a/mobile/android/android-components/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/BrowserEditToolbar.kt
++++ b/mobile/android/android-components/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/BrowserEditToolbar.kt
+@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
+-import androidx.compose.foundation.shape.CircleShape
++import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material3.DividerDefaults
+ import androidx.compose.material3.HorizontalDivider
+ import androidx.compose.material3.MaterialTheme
+@@ -96,8 +96,8 @@ fun BrowserEditToolbar(
+                 modifier =
+                     Modifier.fillMaxWidth()
+                         .padding(all = 8.dp)
+-                        .height(48.dp)
+-                        .clip(shape = CircleShape)
++                        .height(40.dp)
++                        .clip(shape = RoundedCornerShape(4.dp))
+                         .background(color = MaterialTheme.colorScheme.surfaceContainerHighest),
+                 verticalAlignment = Alignment.CenterVertically,
+             ) {
+diff --git a/mobile/android/android-components/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/ui/FullDisplayToolbar.kt b/mobile/android/android-components/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/ui/FullDisplayToolbar.kt
+index ed212628..c01fa3c7 100644
+--- a/mobile/android/android-components/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/ui/FullDisplayToolbar.kt
++++ b/mobile/android/android-components/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/ui/FullDisplayToolbar.kt
+@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
+-import androidx.compose.foundation.shape.CircleShape
++import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material3.DividerDefaults
+ import androidx.compose.material3.HorizontalDivider
+ import androidx.compose.material3.MaterialTheme
+@@ -52,6 +52,10 @@ private const val NO_TOOLBAR_PADDING_DP = 0
+ private const val TOOLBAR_PADDING_DP = 8
+ private const val LARGE_TOOLBAR_PADDING_DP = 24
+ 
++// A page action button is a 48dp touch target around a 24dp icon, i.e. 12dp of space on each side of the icon.
++// The site info (shield) button gives up this much space on each side of its icon: 12dp - 4dp = 8dp.
++private const val SITE_INFO_TRIM_DP = 4
++
+ @Suppress("LongMethod", "LongParameterList", "CyclomaticComplexMethod", "CognitiveComplexMethod")
+ @Composable
+ internal fun FullDisplayToolbar(
+@@ -112,10 +116,10 @@ internal fun FullDisplayToolbar(
+                                             else TOOLBAR_PADDING_DP
+                                     }.dp,
+                             )
+-                            .height(48.dp)
++                            .height(40.dp)
+                             .background(
+                                 color = MaterialTheme.colorScheme.surfaceContainerHighest,
+-                                shape = CircleShape,
++                                shape = RoundedCornerShape(4.dp),
+                             )
+                             .padding(
+                                 start =
+@@ -138,7 +142,12 @@ internal fun FullDisplayToolbar(
+                         ActionContainer(
+                             actions = pageActionsStart,
+                             onInteraction = onInteraction,
+-                            modifier = pageActionsStartModifier,
++                            modifier =
++                                when (pageActionsStart.any { it is Action.SearchSelectorAction }) {
++                                    // The search engine selector has its own sizing, leave it as it is.
++                                    true -> pageActionsStartModifier
++                                    false -> pageActionsStartModifier.trimHorizontalSpace(SITE_INFO_TRIM_DP)
++                                },
+                         )
+                     }
+ 
+@@ -261,6 +270,19 @@ private fun Modifier.adaptiveHorizontalPadding() = layout { measurable, constrai
+     }
+ }
+ 
++/**
++ * Makes this layout [trimDp] narrower on both the start and the end side. The content is still measured at its normal
++ * size and stays centered, it just overflows the layout bounds symmetrically.
++ */
++private fun Modifier.trimHorizontalSpace(trimDp: Int) = layout { measurable, constraints ->
++    val trim = trimDp.dp.roundToPx()
++    val placeable = measurable.measure(constraints)
++
++    layout((placeable.width - trim * 2).coerceAtLeast(0), placeable.height) {
++        placeable.place(-trim, 0)
++    }
++}
++
+ @PreviewLightDark
+ @Composable
+ private fun FullDisplayToolbarPreview(
+diff --git a/mobile/android/android-components/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/ui/SearchSelector.kt b/mobile/android/android-components/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/ui/SearchSelector.kt
+index a8c3408a..d73e8596 100644
+--- a/mobile/android/android-components/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/ui/SearchSelector.kt
++++ b/mobile/android/android-components/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/ui/SearchSelector.kt
+@@ -12,17 +12,14 @@ import androidx.compose.foundation.background
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Row
+-import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.layout.width
+-import androidx.compose.foundation.shape.CircleShape
+ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material3.Card
+ import androidx.compose.material3.CardDefaults
+-import androidx.compose.material3.Icon
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.getValue
+@@ -35,7 +32,6 @@ import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.graphics.ColorFilter
+ import androidx.compose.ui.layout.ContentScale
+ import androidx.compose.ui.platform.LocalView
+-import androidx.compose.ui.res.painterResource
+ import androidx.compose.ui.semantics.contentDescription
+ import androidx.compose.ui.semantics.semantics
+ import androidx.compose.ui.semantics.testTag
+@@ -45,7 +41,6 @@ import com.google.accompanist.drawablepainter.rememberDrawablePainter
+ import mozilla.components.compose.base.menu.CustomPlacementPopup
+ import mozilla.components.compose.base.menu.CustomPlacementPopupVerticalContent
+ import mozilla.components.compose.base.theme.AcornTheme
+-import mozilla.components.compose.browser.toolbar.R
+ import mozilla.components.compose.browser.toolbar.concept.BrowserToolbarTestTags.SEARCH_SELECTOR
+ import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarEvent
+ import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarMenu
+@@ -83,8 +78,8 @@ fun SearchSelector(
+         modifier =
+             modifier
+                 .padding(horizontal = 4.dp)
+-                .width(52.dp)
+-                .height(40.dp)
++                .width(32.dp)
++                .height(32.dp)
+                 .semantics(mergeDescendants = true) {
+                     this.contentDescription = contentDescription
+                     this.testTag = SEARCH_SELECTOR
+@@ -95,7 +90,7 @@ fun SearchSelector(
+                         onInteraction(onClick)
+                     }
+                 },
+-        shape = CircleShape,
++        shape = RoundedCornerShape(2.dp),
+         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
+         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.dp),
+     ) {
+@@ -115,14 +110,6 @@ fun SearchSelector(
+                         else -> null
+                     },
+             )
+-
+-            Spacer(modifier = Modifier.width(4.dp))
+-
+-            Icon(
+-                painter = painterResource(R.drawable.mozac_compose_browser_toolbar_chevron_down_6),
+-                contentDescription = null,
+-                tint = MaterialTheme.colorScheme.onSurface,
+-            )
+         }
+ 
+         CustomPlacementPopup(
+diff --git a/mobile/android/fenix/app/src/main/res/values/dimens.xml b/mobile/android/fenix/app/src/main/res/values/dimens.xml
+index 0d898d8c..e79847bc 100644
+--- a/mobile/android/fenix/app/src/main/res/values/dimens.xml
++++ b/mobile/android/fenix/app/src/main/res/values/dimens.xml
+@@ -61,8 +61,11 @@
+     <dimen name="bottom_sheet_handle_top_margin">8dp</dimen>
+ 
+     <!-- Browser Toolbar -->
+-    <dimen name="composable_browser_toolbar_height">64dp</dimen>
+-    <dimen name="composable_browser_toolbar_height_small">56dp</dimen>
++    <!-- Classic address bar: 40dp box + 8dp padding above and below = 56dp (same as the old View toolbar).
++         Keep in sync with the Compose toolbar in android-components (FullDisplayToolbar / BrowserEditToolbar). -->
++    <dimen name="composable_browser_toolbar_height">56dp</dimen>
++    <!-- Bottom address bar above the navigation bar: 40dp box + 8dp padding above only. -->
++    <dimen name="composable_browser_toolbar_height_small">48dp</dimen>
+     <dimen name="browser_toolbar_height">56dp</dimen>
+     <dimen name="browser_navbar_height">60dp</dimen>
+     <dimen name="browser_navbar_height_small">48dp</dimen>
