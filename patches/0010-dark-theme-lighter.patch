@@ -1,0 +1,160 @@
+diff --git a/mobile/android/android-components/components/compose/base/src/main/java/mozilla/components/compose/base/theme/AcornColors.kt b/mobile/android/android-components/components/compose/base/src/main/java/mozilla/components/compose/base/theme/AcornColors.kt
+index 931fcde2..5b37357f 100644
+--- a/mobile/android/android-components/components/compose/base/src/main/java/mozilla/components/compose/base/theme/AcornColors.kt
++++ b/mobile/android/android-components/components/compose/base/src/main/java/mozilla/components/compose/base/theme/AcornColors.kt
+@@ -191,6 +191,18 @@ class AcornColors(
+         )
+ }
+ 
++// Background ramp of the dark theme, darkest to lightest. To make it lighter or darker, only change the colors on
++// these 7 lines (add or subtract the same amount from R, G and B). Keep them in sync with the custom_dark_* colors
++// in Fenix's res/values-night/colors.xml. They have to stay above darkColorPalette, because top-level properties
++// are initialized in the order they are written.
++private val DarkBgLowest = Color(0xFF2B2A2E)
++private val DarkBgLow = Color(0xFF353438)
++private val DarkBg = Color(0xFF3F3E42)
++private val DarkBgHigh = Color(0xFF48474B)
++private val DarkBgHighest = Color(0xFF515054)
++private val DarkBgSelected = Color(0xFF67666A)
++private val DarkOutlineVariant = Color(0xFF67666A)
++
+ val darkColorPalette =
+     AcornColors(
+         formDefault = PhotonColors.LightGrey05,
+@@ -206,12 +218,12 @@ val darkColorPalette =
+         onWarning = NovaColors.Gray80,
+         warningContainer = NovaColors.Yellow70,
+         onWarningContainer = NovaColors.VioletDesaturated0,
+-        surfaceDimVariant = NovaColors.Gray80,
+-        surfaceContainerSelected = NovaColors.Gray55,
++        surfaceDimVariant = DarkBgLow,
++        surfaceContainerSelected = DarkBgSelected,
+         autofillText = NovaColors.VioletDesaturated30A55,
+         selectedText = NovaColors.Gray45A80,
+         iconPrivate = NovaColors.Violet50,
+-        sheetOutline = NovaColors.Gray75,
++        sheetOutline = DarkBg,
+     )
+ 
+ val lightColorPalette =
+@@ -276,11 +288,11 @@ fun acornDarkColorScheme(): ColorScheme =
+         onTertiary = NovaColors.Gray80,
+         tertiaryContainer = NovaColors.VioletDesaturated90,
+         onTertiaryContainer = NovaColors.VioletDesaturated0,
+-        background = NovaColors.Gray75,
++        background = DarkBg,
+         onBackground = NovaColors.VioletDesaturated0,
+-        surface = NovaColors.Gray75,
++        surface = DarkBg,
+         onSurface = NovaColors.VioletDesaturated0,
+-        surfaceVariant = NovaColors.Gray65,
++        surfaceVariant = DarkBgHighest,
+         onSurfaceVariant = NovaColors.VioletDesaturated0A70,
+         surfaceTint = NovaColors.Gray50,
+         inverseSurface = NovaColors.Gray30,
+@@ -290,15 +302,15 @@ fun acornDarkColorScheme(): ColorScheme =
+         errorContainer = NovaColors.Red70,
+         onErrorContainer = NovaColors.VioletDesaturated0,
+         outline = NovaColors.Gray45,
+-        outlineVariant = NovaColors.Gray60,
++        outlineVariant = DarkOutlineVariant,
+         scrim = NovaColors.BlackA50,
+-        surfaceBright = NovaColors.Gray65,
+-        surfaceDim = NovaColors.Gray85,
+-        surfaceContainer = NovaColors.Gray75,
+-        surfaceContainerHigh = NovaColors.Gray70,
+-        surfaceContainerHighest = NovaColors.Gray65,
+-        surfaceContainerLow = NovaColors.Gray80,
+-        surfaceContainerLowest = NovaColors.Gray85,
++        surfaceBright = DarkBgHighest,
++        surfaceDim = DarkBgLowest,
++        surfaceContainer = DarkBg,
++        surfaceContainerHigh = DarkBgHigh,
++        surfaceContainerHighest = DarkBgHighest,
++        surfaceContainerLow = DarkBgLow,
++        surfaceContainerLowest = DarkBgLowest,
+     )
+ 
+ /** Returns a light Material color scheme mapped from Acorn. */
+diff --git a/mobile/android/fenix/app/src/main/res/values-night/colors.xml b/mobile/android/fenix/app/src/main/res/values-night/colors.xml
+index af1f96f7..79396f06 100644
+--- a/mobile/android/fenix/app/src/main/res/values-night/colors.xml
++++ b/mobile/android/fenix/app/src/main/res/values-night/colors.xml
+@@ -3,6 +3,17 @@
+    - License, v. 2.0. If a copy of the MPL was not distributed with this
+    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+ <resources xmlns:tools="http://schemas.android.com/tools">
++    <!-- Background ramp of the dark theme, darkest to lightest. To make it lighter or darker, only change the hex
++         values on these 7 lines (add or subtract the same amount from R, G and B). AcornColors.kt has the same 7
++         values for Compose; keep both in sync. -->
++    <color name="custom_dark_bg_lowest">#FF2B2A2E</color>
++    <color name="custom_dark_bg_low">#FF353438</color>
++    <color name="custom_dark_bg">#FF3F3E42</color>
++    <color name="custom_dark_bg_high">#FF48474B</color>
++    <color name="custom_dark_bg_highest">#FF515054</color>
++    <color name="custom_dark_bg_selected">#FF67666A</color>
++    <color name="custom_dark_outline_variant">#FF67666A</color>
++
+     <!-- Material3 color variables -->
+     <color name="fx_mobile_primary">@color/novaViolet20</color>
+     <color name="fx_mobile_on_primary">@color/novaGray80</color>
+@@ -17,11 +28,11 @@
+     <color name="fx_mobile_on_tertiary">@color/novaGray80</color>
+     <color name="fx_mobile_tertiary_container">@color/novaVioletDesaturated90</color>
+     <color name="fx_mobile_on_tertiary_container">@color/novaVioletDesaturated0</color>
+-    <color name="fx_mobile_background">@color/novaGray75</color>
++    <color name="fx_mobile_background">@color/custom_dark_bg</color>
+     <color name="fx_mobile_on_background">@color/novaVioletDesaturated0</color>
+-    <color name="fx_mobile_surface">@color/novaGray75</color>
++    <color name="fx_mobile_surface">@color/custom_dark_bg</color>
+     <color name="fx_mobile_on_surface">@color/novaVioletDesaturated0</color>
+-    <color name="fx_mobile_surface_variant">@color/novaGray65</color>
++    <color name="fx_mobile_surface_variant">@color/custom_dark_bg_highest</color>
+     <color name="fx_mobile_on_surface_variant">@color/novaVioletDesaturated0A70</color>
+     <color name="fx_mobile_surface_inverse">@color/novaGray30</color>
+     <color name="fx_mobile_on_surface_inverse">@color/novaGray80</color>
+@@ -42,16 +53,16 @@
+     <color name="fx_mobile_warning_container">@color/novaYellow70</color>
+     <color name="fx_mobile_on_warning_container">@color/novaVioletDesaturated0</color>
+     <color name="fx_mobile_outline">@color/novaGray45</color>
+-    <color name="fx_mobile_outline_variant">@color/novaGray60</color>
+-    <color name="fx_mobile_sheet_outline">@color/novaGray75</color>
+-    <color name="fx_mobile_surface_bright">@color/novaGray65</color>
+-    <color name="fx_mobile_surface_dim">@color/novaGray85</color>
+-    <color name="fx_mobile_surface_container">@color/novaGray75</color>
+-    <color name="fx_mobile_surface_container_high">@color/novaGray70</color>
+-    <color name="fx_mobile_surface_container_highest">@color/novaGray65</color>
+-    <color name="fx_mobile_surface_container_low">@color/novaGray80</color>
+-    <color name="fx_mobile_surface_container_lowest">@color/novaGray85</color>
+-    <color name="fx_mobile_surface_container_selected">@color/novaGray55</color>
++    <color name="fx_mobile_outline_variant">@color/custom_dark_outline_variant</color>
++    <color name="fx_mobile_sheet_outline">@color/custom_dark_bg</color>
++    <color name="fx_mobile_surface_bright">@color/custom_dark_bg_highest</color>
++    <color name="fx_mobile_surface_dim">@color/custom_dark_bg_lowest</color>
++    <color name="fx_mobile_surface_container">@color/custom_dark_bg</color>
++    <color name="fx_mobile_surface_container_high">@color/custom_dark_bg_high</color>
++    <color name="fx_mobile_surface_container_highest">@color/custom_dark_bg_highest</color>
++    <color name="fx_mobile_surface_container_low">@color/custom_dark_bg_low</color>
++    <color name="fx_mobile_surface_container_lowest">@color/custom_dark_bg_lowest</color>
++    <color name="fx_mobile_surface_container_selected">@color/custom_dark_bg_selected</color>
+     <color name="fx_mobile_autofill_text">@color/novaVioletDesaturated30A55</color>
+     <color name="fx_mobile_selected_text">@color/novaGray45A80</color>
+     <color name="fx_mobile_icon_private">@color/novaViolet50</color>
+@@ -106,10 +117,13 @@
+     <color name="protections_dashboard_gradient_end">@color/novaOrange70</color>
+ 
+     <!-- Colors for Edge to Edge background  -->
+-    <color name="homepage_edge_to_edge_gradient_start">#FF0A1A3B</color>
+-    <color name="homepage_edge_to_edge_gradient_end">#FF293564</color>
+-    <color name="homepage_tab_edge_to_edge_tab_strip_item_background_active">#213B6F</color>
+-    <color name="homepage_tab_edge_to_edge_tab_strip_item_background_inactive">#0E1A40</color>
++    <!-- Lightened and desaturated; the original dark blues were #0A1A3B, #293564, #213B6F and #0E1A40.
++         The address bar (custom_dark_bg_highest) is drawn on top of this gradient, so keep the gradient end a
++         little lighter than it, or the bar blends into the background. -->
++    <color name="homepage_edge_to_edge_gradient_start">#FF3C3E4B</color>
++    <color name="homepage_edge_to_edge_gradient_end">#FF57586A</color>
++    <color name="homepage_tab_edge_to_edge_tab_strip_item_background_active">#5A5D71</color>
++    <color name="homepage_tab_edge_to_edge_tab_strip_item_background_inactive">#3F3F4E</color>
+     <color name="homepage_tab_edge_to_edge_toolbar_background">#00000000</color>
+     <color name="homepage_tab_edge_to_edge_toolbar_outline">#00000000</color>
+ 
