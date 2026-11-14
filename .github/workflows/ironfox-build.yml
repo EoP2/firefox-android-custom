@@ -6,10 +6,19 @@
 # 做了什么：
 #   1. 从 artifacts.ironfoxoss.org 下载官方流水线编好的 GeckoView（三个架构的 zip），并校验 SHA-512
 #   2. 检查这批 AAR 是 Release 还是 Nightly 渠道编的（见下面“渠道”），不一致就在这里停下，不浪费后面几小时
-#   3. 取 IronFox 源码，把 ironfox/patches/*.patch 登记进它的补丁清单
-#   4. 跑 IronFox 自己的 get_sources.sh -> prebuild.sh -> build.sh bundle
+#   3. 取 IronFox 源码，检查 ironfox/ 下的补丁和脚本是否齐全
+#   4. 跑 IronFox 自己的 get_sources.sh；然后把 prebuild 拆成三步，你的补丁夹在中间（原因见下面“补丁放在哪一步”）：
+#        prebuild.sh firefox（IronFox 应用它自己的补丁）-> ironfox/patches/*.patch -> 其余 prebuild 目标
+#      最后 build.sh bundle
 #      （IRONFOX_GECKOVIEW_BUNDLE_DIRECT=1：直接用上面下载的 AAR 拼，不编译 Gecko）
 #   5. 上传 arm64 APK（不打包成 zip）
+#
+# 补丁放在哪一步（重要）：
+#   补丁是针对“IronFox 打完它自己补丁之后”的源码写的，其中有的改动了 IronFox 已经改过的代码，所以不能登记进
+#   IronFox 的补丁清单（它先拿每个补丁去套原版源码，套不上就整体中止）。也不能等 prebuild 全部跑完再打：
+#   prepare_fenix 会备份 Fenix 的 res/ 和 app/build.gradle，build.sh 开头又用备份还原它们，晚打的 res/ 改动会被冲掉。
+#   所以把 prebuild 拆成三步：prebuild.sh firefox -> ironfox/apply-custom-patches.sh -> ironfox/prebuild-rest.sh。
+#   prebuild.sh 本来就支持按目标单独运行，没有改 IronFox 的任何脚本。详见 ironfox/README.md。
 #
 # 渠道（重要）：
 #   IronFox 只在 main 分支的流水线里按 Release 编；标签流水线和其它分支都是 Nightly。
@@ -34,8 +43,9 @@
 #     ANDROID_KEY_PASSWORD      密钥口令
 #
 # 说明与限制：
-#   * 没有在 GitHub 上实跑过：补丁部分用 IronFox 自己的 check_patches / apply_patches 在上游 159.0.1 源码上
-#     验证过（143 个补丁全部通过），环境变量用它的 env.sh 校验过；但整条流水线没有完整跑通，也没有编译过。
+#   * 补丁部分没有在 GitHub 上实跑过：在 Firefox 160.0 的 mobile/android 源码上，先按 IronFox 的顺序套上它自己的
+#     补丁，再验证你的 7 个补丁（--fuzz=0 下单独、依次、拿掉任意一个都能套上）；环境变量用它的 env.sh 校验过；
+#     但拆开后的 prebuild 流程没有在 Actions 上完整跑通，也没有编译过。
 #   * 官方 CI 里同一步（build-fenix）在 32 核机器上用了约 1 小时 7 分；标准 runner 只有 4 核（私有仓库 2 核），
 #     粗估 3~6 小时，可能超过 6 小时上限。第一次请先看耗时。
 #   * bootstrap.sh 的 Ubuntu 分支带着没有 -y 的 apt upgrade，并且装的是 Python 版 yq（输出带引号，
@@ -57,13 +67,13 @@ on:
     inputs:
       ironfox_ref:
         description: "IronFox 的 tag（GitHub 镜像上的）"
-        default: "v159.0.1"
+        default: "v160.0"
       expected_commit:
         description: "期望的提交 SHA，不一致就中止（对应下面流水线页面显示的提交；留空 = 不检查）"
-        default: "c5f31df47db696318276bb0df5273213ecda2638"
+        default: "ffa6df3ada288c407521045708bc84ded27b0a5c"
       pipeline_id:
         description: "IronFox 官方 CI 的流水线 ID（GeckoView 从 artifacts.ironfoxoss.org/ironfox/<ID>/ 下载）"
-        default: "3026038830"
+        default: "3053053254"
       channel:
         description: "构建渠道：release / nightly / auto（auto = 按 AAR 里检测到的渠道）"
         type: choice
@@ -244,10 +254,14 @@ jobs:
           fi
           echo "- IronFox 源码：\`$REF\` @ \`$commit\`" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: 登记你的补丁
+      - name: 检查你的补丁和脚本是否齐全
         run: |
           set -euo pipefail
-          bash mine/ironfox/register-patches.sh IronFox mine/ironfox/patches
+          ls mine/ironfox/patches/*.patch
+          for f in apply-custom-patches.sh prebuild-rest.sh watchdog.sh; do
+            test -f "mine/ironfox/$f"
+            bash -n "mine/ironfox/$f"
+          done
 
       - name: 不签名时：把 IronFox 的 sign.sh 换成空操作（保留未签名 APK）
         if: ${{ !inputs.sign }}
@@ -344,13 +358,29 @@ jobs:
           fi
           echo "sh 支持 pipefail 和 [[ ]]，OK"
 
-      - name: prebuild.sh（检查并应用补丁，再做 IronFox 自己的改动）
+      # prebuild 拆成三步，你的补丁夹在中间（原因见文件头部“补丁放在哪一步”）
+      - name: prebuild.sh firefox（IronFox 检查并应用它自己的补丁）
         working-directory: IronFox
         env:
           DW_STALL_SECS: "1200"
           PYTHONUNBUFFERED: "1"
         run: |
-          bash "$GITHUB_WORKSPACE/mine/ironfox/watchdog.sh" ./scripts/prebuild.sh
+          bash "$GITHUB_WORKSPACE/mine/ironfox/watchdog.sh" ./scripts/prebuild.sh firefox
+          # prebuild.sh 每次开头都会删掉上一次的 prebuild.log，这里留一份
+          cp -f build/logs/prebuild.log build/logs/prebuild-firefox.log 2>/dev/null || true
+          df -h / | tail -1
+
+      - name: 应用你的补丁（打在 IronFox 打完补丁的源码上）
+        run: |
+          set -euo pipefail
+          bash mine/ironfox/apply-custom-patches.sh IronFox mine/ironfox/patches
+
+      - name: prebuild.sh（其余目标：Android Components、Application Services、Fenix、Glean 等）
+        env:
+          DW_STALL_SECS: "1200"
+          PYTHONUNBUFFERED: "1"
+        run: |
+          bash mine/ironfox/prebuild-rest.sh IronFox
           df -h / | tail -1
 
       - name: build.sh bundle（用现成的 GeckoView，只编剩下的部分）
