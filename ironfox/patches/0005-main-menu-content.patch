@@ -76,7 +76,7 @@ index 2b0030d..6e6b071 100644
      }
  }
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MainMenu.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MainMenu.kt
-index 02f9c91..b63038f 100644
+index 02f9c91..d1f98bf 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MainMenu.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MainMenu.kt
 @@ -61,7 +61,6 @@ import org.mozilla.fenix.components.menu.MenuAccessPoint
@@ -96,13 +96,20 @@ index 02f9c91..b63038f 100644
  @Composable
  fun MainMenu(
      accessPoint: MenuAccessPoint,
-@@ -180,21 +179,16 @@ fun MainMenu(
+@@ -179,27 +178,28 @@ fun MainMenu(
+     moreSettingsSubmenu: @Composable () -> Unit,
      extensionSubmenu: @Composable () -> Unit,
  ) {
++    // The navigation buttons (back, forward and refresh) are on the side of the toolbar: at the top of the menu, or
++    // pinned to its bottom if the toolbar is at the bottom. The bookmarks, history and downloads buttons are always at
++    // the top: in the second row, or on their own if the navigation buttons are at the bottom.
++    val navigationAtBottom = isBottomToolbar || isExpandedToolbarEnabled
++
      MenuFrame(
 +        contentSpacing = 4.dp,
 +        // The menu is narrow, so there is no margin around its content. The only exception is the room at the bottom
-+        // for the navigation (and the divider above it), which is drawn over the content when the toolbar is at the bottom.
++        // for the navigation (and the divider above it), which is drawn over the content when the toolbar is at the
++        // bottom.
          contentModifier =
              Modifier.padding(
 -                start = 8.dp,
@@ -114,38 +121,69 @@ index 02f9c91..b63038f 100644
 -                    },
 -                end = 8.dp,
                  bottom =
-                     if (accessPoint != MenuAccessPoint.Home && (isBottomToolbar || isExpandedToolbarEnabled)) {
+-                    if (accessPoint != MenuAccessPoint.Home && (isBottomToolbar || isExpandedToolbarEnabled)) {
 -                        84.dp
-+                        MenuNavigationTwoRowsHeight + 1.dp
++                    if (accessPoint != MenuAccessPoint.Home && navigationAtBottom) {
++                        MenuNavigationRowHeight + 1.dp
                      } else {
 -                        16.dp
 +                        0.dp
                      },
              ),
          scrollState = scrollState,
-@@ -209,6 +203,10 @@ fun MainMenu(
+         header = {
+-            if (accessPoint != MenuAccessPoint.Home && !isBottomToolbar && !isExpandedToolbarEnabled) {
++            if (accessPoint != MenuAccessPoint.Home) {
+                 MenuNavigation(
+                     isSiteLoading = isSiteLoading,
+                     isExtensionsExpanded = isExtensionsExpanded,
+@@ -209,6 +209,11 @@ fun MainMenu(
                      onRefreshButtonClick = onRefreshButtonClick,
                      onStopButtonClick = onStopButtonClick,
                      onShareButtonClick = onShareButtonClick,
 +                    showShareButton = false,
++                    showNavigationButtons = !navigationAtBottom,
 +                    onBookmarksButtonClick = onBookmarksMenuClick,
 +                    onHistoryButtonClick = onHistoryMenuClick,
 +                    onDownloadsButtonClick = onDownloadsMenuClick,
                      goBackState = if (canGoBack) MenuItemState.ENABLED else MenuItemState.DISABLED,
                      goForwardState = if (canGoForward) MenuItemState.ENABLED else MenuItemState.DISABLED,
                  )
-@@ -233,6 +231,10 @@ fun MainMenu(
+@@ -219,7 +224,7 @@ fun MainMenu(
+             }
+         },
+         footer = {
+-            if (accessPoint != MenuAccessPoint.Home && (isBottomToolbar || isExpandedToolbarEnabled)) {
++            if (accessPoint != MenuAccessPoint.Home && navigationAtBottom) {
+                 if (scrollState.canScrollBackward) {
+                     HorizontalDivider()
+                 }
+@@ -233,12 +238,24 @@ fun MainMenu(
                      onRefreshButtonClick = onRefreshButtonClick,
                      onStopButtonClick = onStopButtonClick,
                      onShareButtonClick = onShareButtonClick,
 +                    showShareButton = false,
-+                    onBookmarksButtonClick = onBookmarksMenuClick,
-+                    onHistoryButtonClick = onHistoryMenuClick,
-+                    onDownloadsButtonClick = onDownloadsMenuClick,
                      goBackState = if (canGoBack) MenuItemState.ENABLED else MenuItemState.DISABLED,
                      goForwardState = if (canGoForward) MenuItemState.ENABLED else MenuItemState.DISABLED,
                  )
-@@ -272,13 +274,19 @@ fun MainMenu(
+             }
+         },
+     ) {
++        if (accessPoint == MenuAccessPoint.Home) {
++            LibraryMenuGroup(
++                isDownloadHighlighted = isDownloadHighlighted,
++                showPasswords = false,
++                onBookmarksMenuClick = onBookmarksMenuClick,
++                onHistoryMenuClick = onHistoryMenuClick,
++                onDownloadsMenuClick = onDownloadsMenuClick,
++                onPasswordsMenuClick = onPasswordsMenuClick,
++            )
++        }
++
+         if (isReaderViewActive && accessPoint != MenuAccessPoint.Home) {
+             MenuGroup {
+                 MenuItem(
+@@ -272,13 +289,19 @@ fun MainMenu(
  
          if (accessPoint == MenuAccessPoint.Home) {
              MenuGroup {
@@ -166,7 +204,7 @@ index 02f9c91..b63038f 100644
                      onExtensionsMenuClick = onExtensionsMenuClick,
                      extensionSubmenu = extensionSubmenu,
                  )
-@@ -302,42 +310,21 @@ fun MainMenu(
+@@ -302,45 +325,13 @@ fun MainMenu(
                  onSwitchToDesktopSiteMenuClick = onSwitchToDesktopSiteMenuClick,
                  onFindInPageMenuClick = onFindInPageMenuClick,
                  onMoreMenuClick = onMoreMenuClick,
@@ -207,18 +245,13 @@ index 02f9c91..b63038f 100644
 -                label = stringResource(id = R.string.browser_menu_settings),
 -                beforeIconPainter = painterResource(id = iconsR.drawable.mozac_ic_settings_24),
 -                onClick = onSettingsButtonClick,
-+        if (accessPoint == MenuAccessPoint.Home) {
-+            LibraryMenuGroup(
-+                isDownloadHighlighted = isDownloadHighlighted,
-+                showPasswords = false,
-+                onBookmarksMenuClick = onBookmarksMenuClick,
-+                onHistoryMenuClick = onHistoryMenuClick,
-+                onDownloadsMenuClick = onDownloadsMenuClick,
-+                onPasswordsMenuClick = onPasswordsMenuClick,
-             )
+-            )
+-        }
+-
+         if (showQuitMenu) {
+             QuitMenuGroup(onQuitMenuClick = onQuitMenuClick)
          }
- 
-@@ -363,7 +350,7 @@ private fun QuitMenuGroup(onQuitMenuClick: () -> Unit) {
+@@ -363,7 +354,7 @@ private fun QuitMenuGroup(onQuitMenuClick: () -> Unit) {
      }
  }
  
@@ -227,7 +260,7 @@ index 02f9c91..b63038f 100644
  @Composable
  private fun ToolsAndActionsMenuGroup(
      isBookmarked: Boolean,
-@@ -381,6 +368,7 @@ private fun ToolsAndActionsMenuGroup(
+@@ -381,6 +372,7 @@ private fun ToolsAndActionsMenuGroup(
      onSwitchToDesktopSiteMenuClick: () -> Unit,
      onFindInPageMenuClick: () -> Unit,
      onMoreMenuClick: () -> Unit,
@@ -235,7 +268,7 @@ index 02f9c91..b63038f 100644
      extensionsMenuItemDescription: String?,
      moreSettingsSubmenu: @Composable () -> Unit,
      extensionSubmenu: @Composable () -> Unit,
-@@ -434,16 +422,13 @@ private fun ToolsAndActionsMenuGroup(
+@@ -434,16 +426,13 @@ private fun ToolsAndActionsMenuGroup(
              beforeIconPainter = painterResource(id = iconsR.drawable.mozac_ic_device_desktop_24),
              state = menuItemState,
              onClick = onSwitchToDesktopSiteMenuClick,
@@ -258,7 +291,7 @@ index 02f9c91..b63038f 100644
  
          ExtensionsMenuItem(
              inCustomTab = false,
-@@ -451,7 +436,7 @@ private fun ToolsAndActionsMenuGroup(
+@@ -451,7 +440,7 @@ private fun ToolsAndActionsMenuGroup(
              isExtensionsExpanded = isExtensionsExpanded,
              isAllWebExtensionsDisabled = isAllWebExtensionsDisabled,
              webExtensionMenuCount = webExtensionMenuCount,
@@ -267,7 +300,7 @@ index 02f9c91..b63038f 100644
              onExtensionsMenuClick = onExtensionsMenuClick,
              extensionSubmenu = extensionSubmenu,
          )
-@@ -705,8 +690,6 @@ private fun MoreExtensionsMenuItem(
+@@ -705,8 +694,6 @@ private fun MoreExtensionsMenuItem(
                      contentDescription = label
                  }
                  .wrapContentSize()
@@ -360,7 +393,7 @@ index 26d1f79..26701a9 100644
          verticalArrangement = Arrangement.spacedBy(8.dp),
      ) {
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuNavigation.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuNavigation.kt
-index 0218253..7d287ff 100644
+index 0218253..86f92c9 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuNavigation.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuNavigation.kt
 @@ -8,18 +8,15 @@ import androidx.compose.foundation.LocalIndication
@@ -392,7 +425,7 @@ index 0218253..7d287ff 100644
  import androidx.compose.ui.tooling.preview.Preview
  import androidx.compose.ui.tooling.preview.PreviewParameter
  import androidx.compose.ui.unit.dp
-@@ -41,7 +36,30 @@ import mozilla.components.ui.icons.R as iconsR
+@@ -41,7 +36,39 @@ import mozilla.components.ui.icons.R as iconsR
  import org.mozilla.fenix.R
  import org.mozilla.fenix.theme.FirefoxTheme
  
@@ -400,8 +433,13 @@ index 0218253..7d287ff 100644
 +private val NavButtonHeight = 48.dp
 +
 +/**
-+ * The height of [MenuNavigation] when its buttons are in two rows. The menu pins the navigation to its bottom when the
-+ * toolbar is at the bottom, so it has to leave this room at the end of its content.
++ * The height of [MenuNavigation] when its buttons are in a single row. The menu pins the navigation to its bottom
++ * when the toolbar is at the bottom, so it has to leave this room at the end of its content.
++ */
++internal val MenuNavigationRowHeight = NavButtonHeight
++
++/**
++ * The height of [MenuNavigation] when its buttons are in two rows. See [MenuNavigationRowHeight].
 + */
 +internal val MenuNavigationTwoRowsHeight = NavButtonHeight * 2
 +
@@ -419,16 +457,21 @@ index 0218253..7d287ff 100644
 +/**
 + * The navigation buttons of the menu. They only show their icons, in a single row of up to three buttons, or in two
 + * rows if there are more of them.
++ *
++ * The buttons of the library (bookmarks, history and downloads) come after the other ones, so they are in the second
++ * row if there are both. With [showNavigationButtons] turned off, only the buttons of the library are shown, so the
++ * menu can have them at its top and the other buttons at its bottom.
 + */
 +@Suppress("LongParameterList", "LongMethod")
  @Composable
  internal fun MenuNavigation(
      isSiteLoading: Boolean,
-@@ -55,72 +73,144 @@ internal fun MenuNavigation(
+@@ -55,11 +82,113 @@ internal fun MenuNavigation(
      state: MenuItemState = MenuItemState.ENABLED,
      goBackState: MenuItemState = MenuItemState.ENABLED,
      goForwardState: MenuItemState = MenuItemState.ENABLED,
 +    showShareButton: Boolean = true,
++    showNavigationButtons: Boolean = true,
 +    onBookmarksButtonClick: (() -> Unit)? = null,
 +    onHistoryButtonClick: (() -> Unit)? = null,
 +    onDownloadsButtonClick: (() -> Unit)? = null,
@@ -437,27 +480,61 @@ index 0218253..7d287ff 100644
          stringResource(id = R.string.browser_main_menu_content_description_navigation_header)
  
 -    Row(
--        modifier =
--            Modifier.fillMaxWidth()
--                .background(
--                    color =
--                        if (isExtensionsExpanded || isMoreMenuExpanded) {
--                            MaterialTheme.colorScheme.surfaceContainerHigh
--                        } else {
--                            MaterialTheme.colorScheme.surface
--                        }
--                )
--                .padding(horizontal = 4.dp, vertical = 12.dp)
--                .verticalScroll(rememberScrollState())
--                .semantics(mergeDescendants = true) {
--                    contentDescription = navigationHeaderContentDescription
--                },
--        horizontalArrangement = Arrangement.spacedBy(4.dp),
--        verticalAlignment = Alignment.Top,
--    ) {
--        MenuNavItem(
--            modifier = Modifier.weight(1f),
 +    val buttons = mutableListOf<MenuNavButton>()
++
++    if (showNavigationButtons) {
++        buttons.add(
++            MenuNavButton(
++                state = goBackState,
++                painter = painterResource(id = iconsR.drawable.mozac_ic_back_24),
++                label = stringResource(id = R.string.browser_menu_back),
++                onClick = { onBackButtonClick(false) },
++                onLongClick = { onBackButtonClick(true) },
++            ),
++        )
++
++        buttons.add(
++            MenuNavButton(
++                state = goForwardState,
++                painter = painterResource(id = iconsR.drawable.mozac_ic_forward_24),
++                label = stringResource(id = R.string.browser_menu_forward),
++                onClick = { onForwardButtonClick(false) },
++                onLongClick = { onForwardButtonClick(true) },
++            ),
++        )
++
++        if (showShareButton) {
++            buttons.add(
++                MenuNavButton(
++                    state = state,
++                    painter = painterResource(id = iconsR.drawable.mozac_ic_share_android_24),
++                    label = stringResource(id = R.string.browser_menu_share),
++                    onClick = onShareButtonClick,
++                ),
++            )
++        }
++
++        if (isSiteLoading) {
++            buttons.add(
++                MenuNavButton(
++                    state = state,
++                    painter = painterResource(id = iconsR.drawable.mozac_ic_cross_24),
++                    label = stringResource(id = R.string.browser_menu_stop),
++                    onClick = onStopButtonClick,
++                ),
++            )
++        } else {
++            buttons.add(
++                MenuNavButton(
++                    state = state,
++                    painter = painterResource(id = iconsR.drawable.mozac_ic_arrow_clockwise_24),
++                    label = stringResource(id = R.string.browser_menu_refresh),
++                    onClick = { onRefreshButtonClick(false) },
++                    onLongClick = { onRefreshButtonClick(true) },
++                ),
++            )
++        }
++    }
 +
 +    if (onBookmarksButtonClick != null) {
 +        buttons.add(
@@ -492,98 +569,55 @@ index 0218253..7d287ff 100644
 +        )
 +    }
 +
-+    buttons.add(
-+        MenuNavButton(
-             state = goBackState,
-             painter = painterResource(id = iconsR.drawable.mozac_ic_back_24),
-             label = stringResource(id = R.string.browser_menu_back),
-             onClick = { onBackButtonClick(false) },
-             onLongClick = { onBackButtonClick(true) },
--        )
-+        ),
-+    )
- 
++    val buttonsPerRow =
++        if (buttons.size > MAX_NAV_BUTTONS_IN_ONE_ROW) {
++            (buttons.size + 1) / 2
++        } else {
++            // At least one, so that there is no error when there are no buttons at all.
++            buttons.size.coerceAtLeast(1)
++        }
++
++    Column(
+         modifier =
+             Modifier.fillMaxWidth()
+                 .background(
+@@ -70,57 +199,31 @@ internal fun MenuNavigation(
+                             MaterialTheme.colorScheme.surface
+                         }
+                 )
+-                .padding(horizontal = 4.dp, vertical = 12.dp)
+-                .verticalScroll(rememberScrollState())
+                 .semantics(mergeDescendants = true) {
+                     contentDescription = navigationHeaderContentDescription
+                 },
+-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+-        verticalAlignment = Alignment.Top,
+     ) {
 -        MenuNavItem(
 -            modifier = Modifier.weight(1f),
-+    buttons.add(
-+        MenuNavButton(
-             state = goForwardState,
-             painter = painterResource(id = iconsR.drawable.mozac_ic_forward_24),
-             label = stringResource(id = R.string.browser_menu_forward),
-             onClick = { onForwardButtonClick(false) },
-             onLongClick = { onForwardButtonClick(true) },
+-            state = goBackState,
+-            painter = painterResource(id = iconsR.drawable.mozac_ic_back_24),
+-            label = stringResource(id = R.string.browser_menu_back),
+-            onClick = { onBackButtonClick(false) },
+-            onLongClick = { onBackButtonClick(true) },
 -        )
-+        ),
-+    )
- 
+-
+-        MenuNavItem(
+-            modifier = Modifier.weight(1f),
+-            state = goForwardState,
+-            painter = painterResource(id = iconsR.drawable.mozac_ic_forward_24),
+-            label = stringResource(id = R.string.browser_menu_forward),
+-            onClick = { onForwardButtonClick(false) },
+-            onLongClick = { onForwardButtonClick(true) },
+-        )
+-
 -        MenuNavItem(
 -            modifier = Modifier.weight(1f),
 -            state = state,
 -            painter = painterResource(id = iconsR.drawable.mozac_ic_share_android_24),
 -            label = stringResource(id = R.string.browser_menu_share),
 -            onClick = onShareButtonClick,
-+    if (showShareButton) {
-+        buttons.add(
-+            MenuNavButton(
-+                state = state,
-+                painter = painterResource(id = iconsR.drawable.mozac_ic_share_android_24),
-+                label = stringResource(id = R.string.browser_menu_share),
-+                onClick = onShareButtonClick,
-+            ),
-         )
-+    }
- 
--        if (isSiteLoading) {
--            MenuNavItem(
--                modifier = Modifier.weight(1f),
-+    if (isSiteLoading) {
-+        buttons.add(
-+            MenuNavButton(
-                 state = state,
-                 painter = painterResource(id = iconsR.drawable.mozac_ic_cross_24),
-                 label = stringResource(id = R.string.browser_menu_stop),
-                 onClick = onStopButtonClick,
--            )
--        } else {
--            MenuNavItem(
--                modifier = Modifier.weight(1f),
-+            ),
-+        )
-+    } else {
-+        buttons.add(
-+            MenuNavButton(
-                 state = state,
-                 painter = painterResource(id = iconsR.drawable.mozac_ic_arrow_clockwise_24),
-                 label = stringResource(id = R.string.browser_menu_refresh),
-                 onClick = { onRefreshButtonClick(false) },
-                 onLongClick = { onRefreshButtonClick(true) },
--            )
-+            ),
-+        )
-+    }
-+
-+    val buttonsPerRow =
-+        if (buttons.size > MAX_NAV_BUTTONS_IN_ONE_ROW) {
-+            (buttons.size + 1) / 2
-+        } else {
-+            buttons.size
-+        }
-+
-+    Column(
-+        modifier =
-+            Modifier.fillMaxWidth()
-+                .background(
-+                    color =
-+                        if (isExtensionsExpanded || isMoreMenuExpanded) {
-+                            MaterialTheme.colorScheme.surfaceContainerHigh
-+                        } else {
-+                            MaterialTheme.colorScheme.surface
-+                        }
-+                )
-+                .semantics(mergeDescendants = true) {
-+                    contentDescription = navigationHeaderContentDescription
-+                },
-+    ) {
+-        )
 +        buttons.chunked(buttonsPerRow).forEach { rowButtons ->
 +            Row(
 +                modifier = Modifier.fillMaxWidth(),
@@ -599,7 +633,24 @@ index 0218253..7d287ff 100644
 +                        onLongClick = button.onLongClick,
 +                    )
 +                }
-+
+ 
+-        if (isSiteLoading) {
+-            MenuNavItem(
+-                modifier = Modifier.weight(1f),
+-                state = state,
+-                painter = painterResource(id = iconsR.drawable.mozac_ic_cross_24),
+-                label = stringResource(id = R.string.browser_menu_stop),
+-                onClick = onStopButtonClick,
+-            )
+-        } else {
+-            MenuNavItem(
+-                modifier = Modifier.weight(1f),
+-                state = state,
+-                painter = painterResource(id = iconsR.drawable.mozac_ic_arrow_clockwise_24),
+-                label = stringResource(id = R.string.browser_menu_refresh),
+-                onClick = { onRefreshButtonClick(false) },
+-                onLongClick = { onRefreshButtonClick(true) },
+-            )
 +                // Keeps the buttons of a shorter row as wide as the ones in the other rows.
 +                repeat(buttonsPerRow - rowButtons.size) {
 +                    Spacer(modifier = Modifier.weight(1f))
@@ -608,7 +659,7 @@ index 0218253..7d287ff 100644
          }
      }
  }
-@@ -134,10 +224,10 @@ private fun MenuNavItem(
+@@ -134,10 +237,10 @@ private fun MenuNavItem(
      onClick: () -> Unit = {},
      onLongClick: (() -> Unit)? = null,
  ) {
@@ -621,7 +672,7 @@ index 0218253..7d287ff 100644
                  .combinedClickable(
                      interactionSource = null,
                      indication = LocalIndication.current,
-@@ -146,35 +236,13 @@ private fun MenuNavItem(
+@@ -146,35 +249,13 @@ private fun MenuNavItem(
                      onLongClick = onLongClick,
                      role = Role.Button,
                  ),
