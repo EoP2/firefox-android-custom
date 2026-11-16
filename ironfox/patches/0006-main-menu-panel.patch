@@ -1,5 +1,5 @@
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
-index 25211dc..d4421fc 100644
+index 25211dc..d32ccfb 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
 @@ -9,13 +9,15 @@ import android.app.Dialog
@@ -50,7 +50,7 @@ index 25211dc..d4421fc 100644
  
  private object MenuAnimationConfig {
      const val DURATION = 300L
-@@ -198,28 +200,38 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+@@ -198,28 +200,41 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                      val appStore = safeActivity.components.appStore
                      isPrivate = appStore.state.mode.isPrivate
  
@@ -65,28 +65,31 @@ index 25211dc..d4421fc 100644
                      val bottomSheet = findViewById<View?>(materialR.id.design_bottom_sheet)
 +                    val menuAtTop = isSheetAtTop()
                      bottomSheet?.let {
-+                        // The sheet floats instead of being attached to an edge of the screen: below the status bar if
-+                        // it hangs from the top, above the navigation bar if it sits on the bottom, with a margin
-+                        // between them. The background stops there too, and the content has the same room.
++                        // The sheet floats instead of being attached to an edge of the screen, with a margin between it
++                        // and the system bar at that edge. On the bottom, the sheet reaches the bottom of the screen,
++                        // and the margin is made of its padding and the inset of its background. At the top, the sheet
++                        // itself is moved down.
 +                        val sheetMargin = resources.getDimensionPixelSize(R.dimen.main_menu_sheet_margin)
                          ViewCompat.setOnApplyWindowInsetsListener(it) { view, insets ->
                              val systemBarInsets = insets.getInsets(systemBars())
 -                            view.setPadding(0, systemBarInsets.top, 0, systemBarInsets.bottom)
-+                            val topSpace = if (menuAtTop) systemBarInsets.top + sheetMargin else systemBarInsets.top
-+                            val bottomSpace = if (menuAtTop) 0 else systemBarInsets.bottom + sheetMargin
-+                            view.setPadding(0, topSpace, 0, bottomSpace)
-+                            ContextCompat
-+                                .getDrawable(view.context, R.drawable.main_menu_sheet_background)
-+                                ?.let { drawable ->
-+                                    view.background =
-+                                        if (menuAtTop) {
-+                                            InsetDrawable(drawable, 0, topSpace, 0, 0)
-+                                        } else {
-+                                            InsetDrawable(drawable, 0, 0, 0, bottomSpace)
-+                                        }
-+                                }
++                            if (menuAtTop) {
++                                BottomSheetBehavior.from(view).hangBelowStatusBar(systemBarInsets.top, sheetMargin)
++                                view.setPadding(0, 0, 0, 0)
++                                view.requestLayout()
++                            } else {
++                                val bottomSpace = systemBarInsets.bottom + sheetMargin
++                                view.setPadding(0, systemBarInsets.top, 0, bottomSpace)
++                                ContextCompat
++                                    .getDrawable(view.context, R.drawable.main_menu_sheet_background)
++                                    ?.let { drawable ->
++                                        view.background = InsetDrawable(drawable, 0, 0, 0, bottomSpace)
++                                    }
++                            }
                              insets
                          }
++                        // The listener is only called when insets are dispatched, which may have happened already.
++                        ViewCompat.requestApplyInsets(it)
                      }
 -                    bottomSheet?.setBackgroundResource(R.drawable.bottom_sheet_with_top_rounded_corners)
 +                    bottomSheet?.setBackgroundResource(R.drawable.main_menu_sheet_background)
@@ -100,7 +103,7 @@ index 25211dc..d4421fc 100644
                              sheet
                                  .animate()
                                  .translationY(0f)
-@@ -235,6 +247,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+@@ -235,6 +250,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                              peekHeight = resources.displayMetrics.heightPixels
                              maxHeight = calculateMenuSheetHeight()
                              skipCollapsed = true
@@ -108,7 +111,7 @@ index 25211dc..d4421fc 100644
                              state = BottomSheetBehavior.STATE_EXPANDED
                              hideFriction = HIDING_FRICTION
                          }
-@@ -251,6 +264,36 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+@@ -251,6 +267,36 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
          }
      }
  
@@ -145,7 +148,7 @@ index 25211dc..d4421fc 100644
      @Suppress("LongMethod", "CyclomaticComplexMethod", "CognitiveComplexMethod")
      override fun onCreateView(
          inflater: LayoutInflater,
-@@ -295,7 +338,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+@@ -295,7 +341,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                  TranslationsEnabledSettings.dataStore(requireContext()).isEnabled.collectAsState(true)
  
              MenuDialogBottomSheet(
@@ -154,7 +157,7 @@ index 25211dc..d4421fc 100644
                  onRequestDismiss = ::dismiss,
                  menuHandleState =
                      MenuHandleState(
-@@ -305,13 +348,10 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+@@ -305,13 +351,10 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                  !settings.shouldUseExpandedToolbar &&
                                  (isExtensionsExpanded || isMoreMenuExpanded) &&
                                  args.accesspoint == MenuAccessPoint.Browser,
@@ -170,8 +173,19 @@ index 25211dc..d4421fc 100644
              ) {
                  val syncStore = components.backgroundServices.syncStore
                  val tabCollectionStorage = components.core.tabCollectionStorage
+@@ -1154,6 +1197,9 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+                 resources.displayMetrics.heightPixels - EXPANDED_OFFSET.dpToPx(resources.displayMetrics)
+             }
+ 
+-        return orientationMaxHeight - topBarHeight
++        // A sheet that hangs from the top is also that far below the status bar.
++        val topMargin = if (isSheetAtTop()) resources.getDimensionPixelSize(R.dimen.main_menu_sheet_margin) else 0
++
++        return orientationMaxHeight - topBarHeight - topMargin
+     }
+ }
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt
-index 04dc82b..bcca23f 100644
+index 04dc82b..a2e8b9b 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt
 @@ -6,13 +6,15 @@ package org.mozilla.fenix.components.menu
@@ -222,7 +236,7 @@ index 04dc82b..bcca23f 100644
  
  /** A bottom sheet fragment hosting the customizable menu. */
  class MenuFragment : BottomSheetDialogFragment() {
-@@ -119,32 +121,39 @@ class MenuFragment : BottomSheetDialogFragment() {
+@@ -119,32 +121,42 @@ class MenuFragment : BottomSheetDialogFragment() {
              }
              .apply {
                  setOnShowListener {
@@ -241,28 +255,31 @@ index 04dc82b..bcca23f 100644
 +                    val menuAtTop = isSheetAtTop()
  
                      bottomSheet?.let {
-+                        // The sheet floats instead of being attached to an edge of the screen: below the status bar if
-+                        // it hangs from the top, above the navigation bar if it sits on the bottom, with a margin
-+                        // between them. The background stops there too, and the content has the same room.
++                        // The sheet floats instead of being attached to an edge of the screen, with a margin between it
++                        // and the system bar at that edge. On the bottom, the sheet reaches the bottom of the screen,
++                        // and the margin is made of its padding and the inset of its background. At the top, the sheet
++                        // itself is moved down.
 +                        val sheetMargin = resources.getDimensionPixelSize(R.dimen.main_menu_sheet_margin)
                          ViewCompat.setOnApplyWindowInsetsListener(it) { view, insets ->
                              val systemBarInsets = insets.getInsets(systemBars())
 -                            view.setPadding(0, systemBarInsets.top, 0, systemBarInsets.bottom)
-+                            val topSpace = if (menuAtTop) systemBarInsets.top + sheetMargin else systemBarInsets.top
-+                            val bottomSpace = if (menuAtTop) 0 else systemBarInsets.bottom + sheetMargin
-+                            view.setPadding(0, topSpace, 0, bottomSpace)
-+                            ContextCompat
-+                                .getDrawable(view.context, R.drawable.main_menu_sheet_background)
-+                                ?.let { drawable ->
-+                                    view.background =
-+                                        if (menuAtTop) {
-+                                            InsetDrawable(drawable, 0, topSpace, 0, 0)
-+                                        } else {
-+                                            InsetDrawable(drawable, 0, 0, 0, bottomSpace)
-+                                        }
-+                                }
++                            if (menuAtTop) {
++                                BottomSheetBehavior.from(view).hangBelowStatusBar(systemBarInsets.top, sheetMargin)
++                                view.setPadding(0, 0, 0, 0)
++                                view.requestLayout()
++                            } else {
++                                val bottomSpace = systemBarInsets.bottom + sheetMargin
++                                view.setPadding(0, systemBarInsets.top, 0, bottomSpace)
++                                ContextCompat
++                                    .getDrawable(view.context, R.drawable.main_menu_sheet_background)
++                                    ?.let { drawable ->
++                                        view.background = InsetDrawable(drawable, 0, 0, 0, bottomSpace)
++                                    }
++                            }
                              insets
                          }
++                        // The listener is only called when insets are dispatched, which may have happened already.
++                        ViewCompat.requestApplyInsets(it)
                      }
 -                    bottomSheet?.setBackgroundResource(R.drawable.bottom_sheet_with_top_rounded_corners)
 +                    bottomSheet?.setBackgroundResource(R.drawable.main_menu_sheet_background)
@@ -276,7 +293,7 @@ index 04dc82b..bcca23f 100644
                              sheet
                                  .animate()
                                  .translationY(0f)
-@@ -160,6 +169,7 @@ class MenuFragment : BottomSheetDialogFragment() {
+@@ -160,6 +172,7 @@ class MenuFragment : BottomSheetDialogFragment() {
                              peekHeight = resources.displayMetrics.heightPixels
                              maxHeight = calculateMenuSheetHeight()
                              skipCollapsed = true
@@ -284,7 +301,7 @@ index 04dc82b..bcca23f 100644
                              state = BottomSheetBehavior.STATE_EXPANDED
                              hideFriction = HIDING_FRICTION
                          }
-@@ -176,6 +186,36 @@ class MenuFragment : BottomSheetDialogFragment() {
+@@ -176,6 +189,36 @@ class MenuFragment : BottomSheetDialogFragment() {
          }
      }
  
@@ -321,7 +338,7 @@ index 04dc82b..bcca23f 100644
      override fun onCreateView(
          inflater: LayoutInflater,
          container: ViewGroup?,
-@@ -243,7 +283,7 @@ class MenuFragment : BottomSheetDialogFragment() {
+@@ -243,7 +286,7 @@ class MenuFragment : BottomSheetDialogFragment() {
              ) {
                  MenuDialogBottomSheet(
                      modifier =
@@ -330,7 +347,7 @@ index 04dc82b..bcca23f 100644
                              .width(FirefoxTheme.layout.space.static400),
                      onRequestDismiss = ::dismiss,
                      menuHandleState =
-@@ -257,13 +297,10 @@ class MenuFragment : BottomSheetDialogFragment() {
+@@ -257,13 +300,10 @@ class MenuFragment : BottomSheetDialogFragment() {
                                      }
                                  ),
                              useDarkBackground = isHeaderDark,
@@ -346,12 +363,24 @@ index 04dc82b..bcca23f 100644
                  ) {
                      Menu(
                          store = menuStore,
+@@ -336,7 +376,10 @@ class MenuFragment : BottomSheetDialogFragment() {
+                 resources.displayMetrics.heightPixels - EXPANDED_OFFSET.dpToPx(resources.displayMetrics)
+             }
+ 
+-        return orientationMaxHeight - topBarHeight
++        // A sheet that hangs from the top is also that far below the status bar.
++        val topMargin = if (isSheetAtTop()) resources.getDimensionPixelSize(R.dimen.main_menu_sheet_margin) else 0
++
++        return orientationMaxHeight - topBarHeight - topMargin
+     }
+ 
+     private fun buildMenuItemProvidersFactory(): MenuItemProvidersFactory {
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuSheetPlacement.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuSheetPlacement.kt
 new file mode 100644
-index 0000000..7e8bbf2
+index 0000000..436e294
 --- /dev/null
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuSheetPlacement.kt
-@@ -0,0 +1,37 @@
+@@ -0,0 +1,50 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -379,15 +408,28 @@ index 0000000..7e8bbf2
 + * Makes the sheet hang from the top of the screen.
 + *
 + * A sheet that fits its contents rests on the bottom of the screen. Without that, it is expanded at the expanded
-+ * offset from the top. There is nowhere to drag it to from there, so it can't be dragged.
++ * offset, measured from the top. There is nowhere to drag it to from there, so it can't be dragged. How far below the
++ * top of the screen that offset is, is up to whoever knows the insets: see [hangBelowStatusBar].
 + *
 + * This is best done before the dialog is shown, otherwise the sheet could be on the bottom for a moment.
 + */
 +internal fun BottomSheetBehavior<View>.hangFromTop() {
 +    isFitToContents = false
-+    expandedOffset = 0
 +    isDraggable = false
 +    state = BottomSheetBehavior.STATE_EXPANDED
++}
++
++/**
++ * Moves the sheet that hangs from the top of the screen down, so that it is [margin] below the status bar.
++ *
++ * The margin is in the position of the sheet, and not in its padding: for as long as the top of a sheet is above the
++ * bottom of the status bar, Material sets its top padding itself, after every layout, and would undo the padding.
++ *
++ * @param statusBarHeight The height of the status bar, as the sheet gets it in the insets.
++ * @param margin The space between the status bar and the sheet.
++ */
++internal fun BottomSheetBehavior<View>.hangBelowStatusBar(statusBarHeight: Int, margin: Int) {
++    expandedOffset = statusBarHeight + margin
 +}
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuDialogBottomSheet.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuDialogBottomSheet.kt
 index 7212aa6..22f8f01 100644
