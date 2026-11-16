@@ -1,5 +1,5 @@
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
-index 74e4648..26f452e 100644
+index 25211dc..d4421fc 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
 @@ -9,13 +9,15 @@ import android.app.Dialog
@@ -50,7 +50,7 @@ index 74e4648..26f452e 100644
  
  private object MenuAnimationConfig {
      const val DURATION = 300L
-@@ -198,23 +200,23 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+@@ -198,28 +200,38 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                      val appStore = safeActivity.components.appStore
                      isPrivate = appStore.state.mode.isPrivate
  
@@ -63,19 +63,28 @@ index 74e4648..26f452e 100644
 -                    }
 -
                      val bottomSheet = findViewById<View?>(materialR.id.design_bottom_sheet)
++                    val menuAtTop = isSheetAtTop()
                      bottomSheet?.let {
-+                        // The sheet floats above the navigation bar, with a margin below it, instead of being attached
-+                        // to the bottom of the screen. The background stops there too, and the content has the same
-+                        // room.
++                        // The sheet floats instead of being attached to an edge of the screen: below the status bar if
++                        // it hangs from the top, above the navigation bar if it sits on the bottom, with a margin
++                        // between them. The background stops there too, and the content has the same room.
 +                        val sheetMargin = resources.getDimensionPixelSize(R.dimen.main_menu_sheet_margin)
                          ViewCompat.setOnApplyWindowInsetsListener(it) { view, insets ->
                              val systemBarInsets = insets.getInsets(systemBars())
 -                            view.setPadding(0, systemBarInsets.top, 0, systemBarInsets.bottom)
-+                            val bottomSpace = systemBarInsets.bottom + sheetMargin
-+                            view.setPadding(0, systemBarInsets.top, 0, bottomSpace)
++                            val topSpace = if (menuAtTop) systemBarInsets.top + sheetMargin else systemBarInsets.top
++                            val bottomSpace = if (menuAtTop) 0 else systemBarInsets.bottom + sheetMargin
++                            view.setPadding(0, topSpace, 0, bottomSpace)
 +                            ContextCompat
 +                                .getDrawable(view.context, R.drawable.main_menu_sheet_background)
-+                                ?.let { drawable -> view.background = InsetDrawable(drawable, 0, 0, 0, bottomSpace) }
++                                ?.let { drawable ->
++                                    view.background =
++                                        if (menuAtTop) {
++                                            InsetDrawable(drawable, 0, topSpace, 0, 0)
++                                        } else {
++                                            InsetDrawable(drawable, 0, 0, 0, bottomSpace)
++                                        }
++                                }
                              insets
                          }
                      }
@@ -84,7 +93,22 @@ index 74e4648..26f452e 100644
  
                      // https://bugzilla.mozilla.org/show_bug.cgi?id=1982004
                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-@@ -251,6 +253,24 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+                         bottomSheet?.let { sheet ->
+-                            sheet.translationY = sheet.height * MenuAnimationConfig.START_OFFSET_RATIO
++                            val startOffset = sheet.height * MenuAnimationConfig.START_OFFSET_RATIO
++                            sheet.translationY = if (menuAtTop) -startOffset else startOffset
+                             sheet
+                                 .animate()
+                                 .translationY(0f)
+@@ -235,6 +247,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+                             peekHeight = resources.displayMetrics.heightPixels
+                             maxHeight = calculateMenuSheetHeight()
+                             skipCollapsed = true
++                            if (menuAtTop) hangFromTop()
+                             state = BottomSheetBehavior.STATE_EXPANDED
+                             hideFriction = HIDING_FRICTION
+                         }
+@@ -251,6 +264,36 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
          }
      }
  
@@ -93,23 +117,35 @@ index 74e4648..26f452e 100644
 +        // hand takes precedence over the dim that the theme asks for.
 +        dialog?.window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
 +
-+        // The sheet is narrow and aligned to the end of the screen, with a margin. This has to be set before the
-+        // dialog is shown, otherwise the sheet would flash at full width for a moment.
++        // The window of a bottom sheet slides in from the bottom, which is wrong for a sheet that hangs from the top.
++        if (isSheetAtTop()) {
++            dialog?.window?.setWindowAnimations(R.style.MainMenuTopWindowAnimation)
++        }
++
++        // The sheet is narrow, aligned to the end of the screen, with a margin, and at the top if the menu is. This has
++        // to be set before the dialog is shown, otherwise the sheet would flash at full width, or on the bottom, for
++        // a moment.
 +        dialog?.findViewById<View?>(materialR.id.design_bottom_sheet)?.let { bottomSheet ->
 +            (bottomSheet.layoutParams as? CoordinatorLayout.LayoutParams)?.apply {
 +                gravity = Gravity.END or Gravity.TOP
 +                marginEnd = resources.getDimensionPixelSize(R.dimen.main_menu_sheet_margin)
 +            }
-+            BottomSheetBehavior.from(bottomSheet).maxWidth = calculateMenuSheetWidth()
++            BottomSheetBehavior.from(bottomSheet).apply {
++                maxWidth = calculateMenuSheetWidth()
++                if (isSheetAtTop()) hangFromTop()
++            }
 +        }
 +
 +        super.onStart()
 +    }
 +
++    /** Whether the sheet hangs from the top of the screen, as the toolbar does, instead of sitting on the bottom. */
++    private fun isSheetAtTop() = requireComponents.settings.isMenuAtTop(args.accesspoint)
++
      @Suppress("LongMethod", "CyclomaticComplexMethod", "CognitiveComplexMethod")
      override fun onCreateView(
          inflater: LayoutInflater,
-@@ -295,7 +315,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+@@ -295,7 +338,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                  TranslationsEnabledSettings.dataStore(requireContext()).isEnabled.collectAsState(true)
  
              MenuDialogBottomSheet(
@@ -118,7 +154,7 @@ index 74e4648..26f452e 100644
                  onRequestDismiss = ::dismiss,
                  menuHandleState =
                      MenuHandleState(
-@@ -305,13 +325,10 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+@@ -305,13 +348,10 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                  !settings.shouldUseExpandedToolbar &&
                                  (isExtensionsExpanded || isMoreMenuExpanded) &&
                                  args.accesspoint == MenuAccessPoint.Browser,
@@ -135,7 +171,7 @@ index 74e4648..26f452e 100644
                  val syncStore = components.backgroundServices.syncStore
                  val tabCollectionStorage = components.core.tabCollectionStorage
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt
-index 04dc82b..06e2bad 100644
+index 04dc82b..bcca23f 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt
 @@ -6,13 +6,15 @@ package org.mozilla.fenix.components.menu
@@ -186,7 +222,7 @@ index 04dc82b..06e2bad 100644
  
  /** A bottom sheet fragment hosting the customizable menu. */
  class MenuFragment : BottomSheetDialogFragment() {
-@@ -119,27 +121,24 @@ class MenuFragment : BottomSheetDialogFragment() {
+@@ -119,32 +121,39 @@ class MenuFragment : BottomSheetDialogFragment() {
              }
              .apply {
                  setOnShowListener {
@@ -202,20 +238,29 @@ index 04dc82b..06e2bad 100644
 -                    }
 -
                      val bottomSheet = findViewById<View?>(materialR.id.design_bottom_sheet)
++                    val menuAtTop = isSheetAtTop()
  
                      bottomSheet?.let {
-+                        // The sheet floats above the navigation bar, with a margin below it, instead of being attached
-+                        // to the bottom of the screen. The background stops there too, and the content has the same
-+                        // room.
++                        // The sheet floats instead of being attached to an edge of the screen: below the status bar if
++                        // it hangs from the top, above the navigation bar if it sits on the bottom, with a margin
++                        // between them. The background stops there too, and the content has the same room.
 +                        val sheetMargin = resources.getDimensionPixelSize(R.dimen.main_menu_sheet_margin)
                          ViewCompat.setOnApplyWindowInsetsListener(it) { view, insets ->
                              val systemBarInsets = insets.getInsets(systemBars())
 -                            view.setPadding(0, systemBarInsets.top, 0, systemBarInsets.bottom)
-+                            val bottomSpace = systemBarInsets.bottom + sheetMargin
-+                            view.setPadding(0, systemBarInsets.top, 0, bottomSpace)
++                            val topSpace = if (menuAtTop) systemBarInsets.top + sheetMargin else systemBarInsets.top
++                            val bottomSpace = if (menuAtTop) 0 else systemBarInsets.bottom + sheetMargin
++                            view.setPadding(0, topSpace, 0, bottomSpace)
 +                            ContextCompat
 +                                .getDrawable(view.context, R.drawable.main_menu_sheet_background)
-+                                ?.let { drawable -> view.background = InsetDrawable(drawable, 0, 0, 0, bottomSpace) }
++                                ?.let { drawable ->
++                                    view.background =
++                                        if (menuAtTop) {
++                                            InsetDrawable(drawable, 0, topSpace, 0, 0)
++                                        } else {
++                                            InsetDrawable(drawable, 0, 0, 0, bottomSpace)
++                                        }
++                                }
                              insets
                          }
                      }
@@ -224,7 +269,22 @@ index 04dc82b..06e2bad 100644
  
                      // https://bugzilla.mozilla.org/show_bug.cgi?id=1982004
                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-@@ -176,6 +175,24 @@ class MenuFragment : BottomSheetDialogFragment() {
+                         bottomSheet?.let { sheet ->
+-                            sheet.translationY = sheet.height * MENU_ANIMATION_START_OFFSET_RATIO
++                            val startOffset = sheet.height * MENU_ANIMATION_START_OFFSET_RATIO
++                            sheet.translationY = if (menuAtTop) -startOffset else startOffset
+                             sheet
+                                 .animate()
+                                 .translationY(0f)
+@@ -160,6 +169,7 @@ class MenuFragment : BottomSheetDialogFragment() {
+                             peekHeight = resources.displayMetrics.heightPixels
+                             maxHeight = calculateMenuSheetHeight()
+                             skipCollapsed = true
++                            if (menuAtTop) hangFromTop()
+                             state = BottomSheetBehavior.STATE_EXPANDED
+                             hideFriction = HIDING_FRICTION
+                         }
+@@ -176,6 +186,36 @@ class MenuFragment : BottomSheetDialogFragment() {
          }
      }
  
@@ -233,23 +293,35 @@ index 04dc82b..06e2bad 100644
 +        // hand takes precedence over the dim that the theme asks for.
 +        dialog?.window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
 +
-+        // The sheet is narrow and aligned to the end of the screen, with a margin. This has to be set before the
-+        // dialog is shown, otherwise the sheet would flash at full width for a moment.
++        // The window of a bottom sheet slides in from the bottom, which is wrong for a sheet that hangs from the top.
++        if (isSheetAtTop()) {
++            dialog?.window?.setWindowAnimations(R.style.MainMenuTopWindowAnimation)
++        }
++
++        // The sheet is narrow, aligned to the end of the screen, with a margin, and at the top if the menu is. This has
++        // to be set before the dialog is shown, otherwise the sheet would flash at full width, or on the bottom, for
++        // a moment.
 +        dialog?.findViewById<View?>(materialR.id.design_bottom_sheet)?.let { bottomSheet ->
 +            (bottomSheet.layoutParams as? CoordinatorLayout.LayoutParams)?.apply {
 +                gravity = Gravity.END or Gravity.TOP
 +                marginEnd = resources.getDimensionPixelSize(R.dimen.main_menu_sheet_margin)
 +            }
-+            BottomSheetBehavior.from(bottomSheet).maxWidth = calculateMenuSheetWidth()
++            BottomSheetBehavior.from(bottomSheet).apply {
++                maxWidth = calculateMenuSheetWidth()
++                if (isSheetAtTop()) hangFromTop()
++            }
 +        }
 +
 +        super.onStart()
 +    }
 +
++    /** Whether the sheet hangs from the top of the screen, as the toolbar does, instead of sitting on the bottom. */
++    private fun isSheetAtTop() = requireComponents.settings.isMenuAtTop(args.accessPoint)
++
      override fun onCreateView(
          inflater: LayoutInflater,
          container: ViewGroup?,
-@@ -243,7 +260,7 @@ class MenuFragment : BottomSheetDialogFragment() {
+@@ -243,7 +283,7 @@ class MenuFragment : BottomSheetDialogFragment() {
              ) {
                  MenuDialogBottomSheet(
                      modifier =
@@ -258,7 +330,7 @@ index 04dc82b..06e2bad 100644
                              .width(FirefoxTheme.layout.space.static400),
                      onRequestDismiss = ::dismiss,
                      menuHandleState =
-@@ -257,13 +274,10 @@ class MenuFragment : BottomSheetDialogFragment() {
+@@ -257,13 +297,10 @@ class MenuFragment : BottomSheetDialogFragment() {
                                      }
                                  ),
                              useDarkBackground = isHeaderDark,
@@ -274,6 +346,49 @@ index 04dc82b..06e2bad 100644
                  ) {
                      Menu(
                          store = menuStore,
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuSheetPlacement.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuSheetPlacement.kt
+new file mode 100644
+index 0000000..7e8bbf2
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuSheetPlacement.kt
+@@ -0,0 +1,37 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++package org.mozilla.fenix.components.menu
++
++import android.view.View
++import com.google.android.material.bottomsheet.BottomSheetBehavior
++import org.mozilla.fenix.utils.Settings
++
++/**
++ * Whether the menu sheet hangs from the top of the screen, instead of sitting on the bottom of it.
++ *
++ * The menu goes next to the toolbar, where the button that opens it is: at the top if the toolbar is at the top, at the
++ * bottom if the toolbar is at the bottom. With the expanded toolbar that button is in the navigation bar at the bottom
++ * of the screen, so the menu is at the bottom as well, except in a custom tab, whose menu only looks at the position
++ * of the toolbar. This is the same condition that puts the navigation buttons at the top or at the bottom of the menu.
++ *
++ * @param accessPoint Where the menu was opened from.
++ */
++internal fun Settings.isMenuAtTop(accessPoint: MenuAccessPoint): Boolean =
++    !shouldUseBottomToolbar && (accessPoint == MenuAccessPoint.External || !shouldUseExpandedToolbar)
++
++/**
++ * Makes the sheet hang from the top of the screen.
++ *
++ * A sheet that fits its contents rests on the bottom of the screen. Without that, it is expanded at the expanded
++ * offset from the top. There is nowhere to drag it to from there, so it can't be dragged.
++ *
++ * This is best done before the dialog is shown, otherwise the sheet could be on the bottom for a moment.
++ */
++internal fun BottomSheetBehavior<View>.hangFromTop() {
++    isFitToContents = false
++    expandedOffset = 0
++    isDraggable = false
++    state = BottomSheetBehavior.STATE_EXPANDED
++}
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuDialogBottomSheet.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuDialogBottomSheet.kt
 index 7212aa6..22f8f01 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuDialogBottomSheet.kt
@@ -303,6 +418,40 @@ index 7212aa6..22f8f01 100644
                      .nestedScroll(rememberNestedScrollInteropConnection())
          ) {
              if (menuHandleState.visible) {
+diff --git a/mobile/android/fenix/app/src/main/res/anim/main_menu_top_enter.xml b/mobile/android/fenix/app/src/main/res/anim/main_menu_top_enter.xml
+new file mode 100644
+index 0000000..a4a5e15
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/res/anim/main_menu_top_enter.xml
+@@ -0,0 +1,11 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- This Source Code Form is subject to the terms of the Mozilla Public
++   - License, v. 2.0. If a copy of the MPL was not distributed with this
++   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
++
++<!-- The main menu comes in from the top of the screen, when it hangs from the top. -->
++<translate xmlns:android="http://schemas.android.com/apk/res/android"
++    android:duration="250"
++    android:fromYDelta="-100%"
++    android:interpolator="@android:anim/decelerate_interpolator"
++    android:toYDelta="0" />
+diff --git a/mobile/android/fenix/app/src/main/res/anim/main_menu_top_exit.xml b/mobile/android/fenix/app/src/main/res/anim/main_menu_top_exit.xml
+new file mode 100644
+index 0000000..cbcea75
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/res/anim/main_menu_top_exit.xml
+@@ -0,0 +1,11 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- This Source Code Form is subject to the terms of the Mozilla Public
++   - License, v. 2.0. If a copy of the MPL was not distributed with this
++   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
++
++<!-- The main menu goes out through the top of the screen, when it hangs from the top. -->
++<translate xmlns:android="http://schemas.android.com/apk/res/android"
++    android:duration="200"
++    android:fromYDelta="0"
++    android:interpolator="@android:anim/accelerate_interpolator"
++    android:toYDelta="-100%" />
 diff --git a/mobile/android/fenix/app/src/main/res/drawable/main_menu_sheet_background.xml b/mobile/android/fenix/app/src/main/res/drawable/main_menu_sheet_background.xml
 new file mode 100644
 index 0000000..ace9d56
@@ -343,3 +492,22 @@ index 0d898d8..b14c4f2 100644
      <dimen name="browser_menu_padding">56dp</dimen>
  
  </resources>
+diff --git a/mobile/android/fenix/app/src/main/res/values/main_menu_sheet_styles.xml b/mobile/android/fenix/app/src/main/res/values/main_menu_sheet_styles.xml
+new file mode 100644
+index 0000000..a5c3fb5
+--- /dev/null
++++ b/mobile/android/fenix/app/src/main/res/values/main_menu_sheet_styles.xml
+@@ -0,0 +1,13 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- This Source Code Form is subject to the terms of the Mozilla Public
++   - License, v. 2.0. If a copy of the MPL was not distributed with this
++   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
++
++<resources>
++    <!-- Window animation of the main menu when it hangs from the top of the screen. The bottom sheet theme only has
++         one that slides in from the bottom. -->
++    <style name="MainMenuTopWindowAnimation">
++        <item name="android:windowEnterAnimation">@anim/main_menu_top_enter</item>
++        <item name="android:windowExitAnimation">@anim/main_menu_top_exit</item>
++    </style>
++</resources>
