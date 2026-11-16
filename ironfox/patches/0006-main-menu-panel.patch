@@ -1,12 +1,13 @@
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
-index 74e4648..a12c8d3 100644
+index 74e4648..26f452e 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuDialogFragment.kt
-@@ -9,13 +9,14 @@ import android.app.Dialog
+@@ -9,13 +9,15 @@ import android.app.Dialog
  import android.app.PendingIntent
  import android.content.Intent
  import android.content.res.Configuration
 -import android.graphics.Color
++import android.graphics.drawable.InsetDrawable
  import android.os.Build
  import android.os.Bundle
 +import android.view.Gravity
@@ -18,7 +19,7 @@ index 74e4648..a12c8d3 100644
  import android.view.animation.OvershootInterpolator
  import androidx.activity.compose.BackHandler
  import androidx.compose.animation.AnimatedContent
-@@ -26,8 +27,7 @@ import androidx.compose.animation.togetherWith
+@@ -26,8 +28,7 @@ import androidx.compose.animation.togetherWith
  import androidx.compose.foundation.layout.padding
  import androidx.compose.foundation.layout.width
  import androidx.compose.foundation.rememberScrollState
@@ -28,7 +29,7 @@ index 74e4648..a12c8d3 100644
  import androidx.compose.material3.SnackbarHostState
  import androidx.compose.runtime.collectAsState
  import androidx.compose.runtime.getValue
-@@ -36,9 +36,10 @@ import androidx.compose.runtime.remember
+@@ -36,9 +37,11 @@ import androidx.compose.runtime.remember
  import androidx.compose.runtime.setValue
  import androidx.compose.ui.Modifier
  import androidx.compose.ui.platform.LocalContext
@@ -37,10 +38,11 @@ index 74e4648..a12c8d3 100644
  import androidx.compose.ui.unit.dp
 -import androidx.core.graphics.drawable.toDrawable
 +import androidx.coordinatorlayout.widget.CoordinatorLayout
++import androidx.core.content.ContextCompat
  import androidx.core.net.toUri
  import androidx.core.view.ViewCompat
  import androidx.core.view.WindowInsetsCompat.Type.systemBars
-@@ -134,7 +135,6 @@ import org.mozilla.fenix.webcompat.middleware.DefaultWebCompatReporterRetrievalS
+@@ -134,7 +137,6 @@ import org.mozilla.fenix.webcompat.middleware.DefaultWebCompatReporterRetrievalS
  
  private const val EXPANDED_OFFSET = 56
  private const val HIDING_FRICTION = 0.9f
@@ -48,7 +50,7 @@ index 74e4648..a12c8d3 100644
  
  private object MenuAnimationConfig {
      const val DURATION = 300L
-@@ -198,14 +198,6 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+@@ -198,23 +200,23 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                      val appStore = safeActivity.components.appStore
                      isPrivate = appStore.state.mode.isPrivate
  
@@ -62,8 +64,18 @@ index 74e4648..a12c8d3 100644
 -
                      val bottomSheet = findViewById<View?>(materialR.id.design_bottom_sheet)
                      bottomSheet?.let {
++                        // The sheet floats above the navigation bar, with a margin below it, instead of being attached
++                        // to the bottom of the screen. The background stops there too, and the content has the same
++                        // room.
++                        val sheetMargin = resources.getDimensionPixelSize(R.dimen.main_menu_sheet_margin)
                          ViewCompat.setOnApplyWindowInsetsListener(it) { view, insets ->
-@@ -214,7 +206,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+                             val systemBarInsets = insets.getInsets(systemBars())
+-                            view.setPadding(0, systemBarInsets.top, 0, systemBarInsets.bottom)
++                            val bottomSpace = systemBarInsets.bottom + sheetMargin
++                            view.setPadding(0, systemBarInsets.top, 0, bottomSpace)
++                            ContextCompat
++                                .getDrawable(view.context, R.drawable.main_menu_sheet_background)
++                                ?.let { drawable -> view.background = InsetDrawable(drawable, 0, 0, 0, bottomSpace) }
                              insets
                          }
                      }
@@ -72,7 +84,7 @@ index 74e4648..a12c8d3 100644
  
                      // https://bugzilla.mozilla.org/show_bug.cgi?id=1982004
                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-@@ -251,6 +243,21 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+@@ -251,6 +253,24 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
          }
      }
  
@@ -81,10 +93,13 @@ index 74e4648..a12c8d3 100644
 +        // hand takes precedence over the dim that the theme asks for.
 +        dialog?.window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
 +
-+        // The sheet is narrow and aligned to the end of the screen. This has to be set before the dialog is shown,
-+        // otherwise the sheet would flash at full width for a moment.
++        // The sheet is narrow and aligned to the end of the screen, with a margin. This has to be set before the
++        // dialog is shown, otherwise the sheet would flash at full width for a moment.
 +        dialog?.findViewById<View?>(materialR.id.design_bottom_sheet)?.let { bottomSheet ->
-+            (bottomSheet.layoutParams as? CoordinatorLayout.LayoutParams)?.gravity = Gravity.END or Gravity.TOP
++            (bottomSheet.layoutParams as? CoordinatorLayout.LayoutParams)?.apply {
++                gravity = Gravity.END or Gravity.TOP
++                marginEnd = resources.getDimensionPixelSize(R.dimen.main_menu_sheet_margin)
++            }
 +            BottomSheetBehavior.from(bottomSheet).maxWidth = calculateMenuSheetWidth()
 +        }
 +
@@ -94,7 +109,7 @@ index 74e4648..a12c8d3 100644
      @Suppress("LongMethod", "CyclomaticComplexMethod", "CognitiveComplexMethod")
      override fun onCreateView(
          inflater: LayoutInflater,
-@@ -295,7 +302,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+@@ -295,7 +315,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                  TranslationsEnabledSettings.dataStore(requireContext()).isEnabled.collectAsState(true)
  
              MenuDialogBottomSheet(
@@ -103,32 +118,32 @@ index 74e4648..a12c8d3 100644
                  onRequestDismiss = ::dismiss,
                  menuHandleState =
                      MenuHandleState(
-@@ -305,12 +312,13 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
+@@ -305,13 +325,10 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                  !settings.shouldUseExpandedToolbar &&
                                  (isExtensionsExpanded || isMoreMenuExpanded) &&
                                  args.accesspoint == MenuAccessPoint.Browser,
 +                        visible = false,
                      ),
                  snackbarHostState = snackbarHostState,
-                 cornerShape =
+-                cornerShape =
 -                    MaterialTheme.shapes.extraLarge.copy(
 -                        bottomStart = CornerSize(0.dp),
 -                        bottomEnd = CornerSize(0.dp),
-+                    RoundedCornerShape(
-+                        topStart = dimensionResource(id = R.dimen.main_menu_sheet_corner_radius),
-+                        topEnd = dimensionResource(id = R.dimen.main_menu_sheet_corner_radius),
-                     ),
+-                    ),
++                cornerShape = RoundedCornerShape(dimensionResource(id = R.dimen.main_menu_sheet_corner_radius)),
              ) {
                  val syncStore = components.backgroundServices.syncStore
+                 val tabCollectionStorage = components.core.tabCollectionStorage
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt
-index 04dc82b..bea84a9 100644
+index 04dc82b..06e2bad 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt
 +++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/MenuFragment.kt
-@@ -6,13 +6,14 @@ package org.mozilla.fenix.components.menu
+@@ -6,13 +6,15 @@ package org.mozilla.fenix.components.menu
  
  import android.app.Dialog
  import android.content.res.Configuration
 -import android.graphics.Color
++import android.graphics.drawable.InsetDrawable
  import android.os.Build
  import android.os.Bundle
 +import android.view.Gravity
@@ -140,7 +155,7 @@ index 04dc82b..bea84a9 100644
  import android.view.animation.OvershootInterpolator
  import androidx.activity.compose.BackHandler
  import androidx.compose.foundation.gestures.awaitEachGesture
-@@ -20,8 +21,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
+@@ -20,8 +22,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
  import androidx.compose.foundation.layout.Box
  import androidx.compose.foundation.layout.padding
  import androidx.compose.foundation.layout.width
@@ -150,7 +165,7 @@ index 04dc82b..bea84a9 100644
  import androidx.compose.material3.SnackbarHostState
  import androidx.compose.runtime.Composable
  import androidx.compose.runtime.getValue
-@@ -39,9 +39,10 @@ import androidx.compose.ui.input.pointer.PointerId
+@@ -39,9 +40,11 @@ import androidx.compose.ui.input.pointer.PointerId
  import androidx.compose.ui.input.pointer.PointerInputScope
  import androidx.compose.ui.input.pointer.pointerInput
  import androidx.compose.ui.platform.LocalHapticFeedback
@@ -159,10 +174,11 @@ index 04dc82b..bea84a9 100644
  import androidx.compose.ui.unit.dp
 -import androidx.core.graphics.drawable.toDrawable
 +import androidx.coordinatorlayout.widget.CoordinatorLayout
++import androidx.core.content.ContextCompat
  import androidx.core.view.ViewCompat
  import androidx.core.view.WindowInsetsCompat.Type.systemBars
  import androidx.fragment.compose.content
-@@ -92,7 +93,6 @@ private const val EXPANDED_OFFSET = 56
+@@ -92,7 +95,6 @@ private const val EXPANDED_OFFSET = 56
  private const val HIDING_FRICTION = 0.9f
  private const val MENU_ANIMATION_DURATION = 300L
  private const val MENU_ANIMATION_START_OFFSET_RATIO = 0.2f
@@ -170,7 +186,7 @@ index 04dc82b..bea84a9 100644
  
  /** A bottom sheet fragment hosting the customizable menu. */
  class MenuFragment : BottomSheetDialogFragment() {
-@@ -119,17 +119,6 @@ class MenuFragment : BottomSheetDialogFragment() {
+@@ -119,27 +121,24 @@ class MenuFragment : BottomSheetDialogFragment() {
              }
              .apply {
                  setOnShowListener {
@@ -188,7 +204,18 @@ index 04dc82b..bea84a9 100644
                      val bottomSheet = findViewById<View?>(materialR.id.design_bottom_sheet)
  
                      bottomSheet?.let {
-@@ -139,7 +128,7 @@ class MenuFragment : BottomSheetDialogFragment() {
++                        // The sheet floats above the navigation bar, with a margin below it, instead of being attached
++                        // to the bottom of the screen. The background stops there too, and the content has the same
++                        // room.
++                        val sheetMargin = resources.getDimensionPixelSize(R.dimen.main_menu_sheet_margin)
+                         ViewCompat.setOnApplyWindowInsetsListener(it) { view, insets ->
+                             val systemBarInsets = insets.getInsets(systemBars())
+-                            view.setPadding(0, systemBarInsets.top, 0, systemBarInsets.bottom)
++                            val bottomSpace = systemBarInsets.bottom + sheetMargin
++                            view.setPadding(0, systemBarInsets.top, 0, bottomSpace)
++                            ContextCompat
++                                .getDrawable(view.context, R.drawable.main_menu_sheet_background)
++                                ?.let { drawable -> view.background = InsetDrawable(drawable, 0, 0, 0, bottomSpace) }
                              insets
                          }
                      }
@@ -197,7 +224,7 @@ index 04dc82b..bea84a9 100644
  
                      // https://bugzilla.mozilla.org/show_bug.cgi?id=1982004
                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-@@ -176,6 +165,21 @@ class MenuFragment : BottomSheetDialogFragment() {
+@@ -176,6 +175,24 @@ class MenuFragment : BottomSheetDialogFragment() {
          }
      }
  
@@ -206,10 +233,13 @@ index 04dc82b..bea84a9 100644
 +        // hand takes precedence over the dim that the theme asks for.
 +        dialog?.window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
 +
-+        // The sheet is narrow and aligned to the end of the screen. This has to be set before the dialog is shown,
-+        // otherwise the sheet would flash at full width for a moment.
++        // The sheet is narrow and aligned to the end of the screen, with a margin. This has to be set before the
++        // dialog is shown, otherwise the sheet would flash at full width for a moment.
 +        dialog?.findViewById<View?>(materialR.id.design_bottom_sheet)?.let { bottomSheet ->
-+            (bottomSheet.layoutParams as? CoordinatorLayout.LayoutParams)?.gravity = Gravity.END or Gravity.TOP
++            (bottomSheet.layoutParams as? CoordinatorLayout.LayoutParams)?.apply {
++                gravity = Gravity.END or Gravity.TOP
++                marginEnd = resources.getDimensionPixelSize(R.dimen.main_menu_sheet_margin)
++            }
 +            BottomSheetBehavior.from(bottomSheet).maxWidth = calculateMenuSheetWidth()
 +        }
 +
@@ -219,7 +249,7 @@ index 04dc82b..bea84a9 100644
      override fun onCreateView(
          inflater: LayoutInflater,
          container: ViewGroup?,
-@@ -243,7 +247,7 @@ class MenuFragment : BottomSheetDialogFragment() {
+@@ -243,7 +260,7 @@ class MenuFragment : BottomSheetDialogFragment() {
              ) {
                  MenuDialogBottomSheet(
                      modifier =
@@ -228,23 +258,22 @@ index 04dc82b..bea84a9 100644
                              .width(FirefoxTheme.layout.space.static400),
                      onRequestDismiss = ::dismiss,
                      menuHandleState =
-@@ -257,12 +261,13 @@ class MenuFragment : BottomSheetDialogFragment() {
+@@ -257,13 +274,10 @@ class MenuFragment : BottomSheetDialogFragment() {
                                      }
                                  ),
                              useDarkBackground = isHeaderDark,
 +                            visible = false,
                          ),
                      snackbarHostState = snackbarHostState,
-                     cornerShape =
+-                    cornerShape =
 -                        MaterialTheme.shapes.extraLarge.copy(
 -                            bottomStart = CornerSize(0.dp),
 -                            bottomEnd = CornerSize(0.dp),
-+                        RoundedCornerShape(
-+                            topStart = dimensionResource(id = R.dimen.main_menu_sheet_corner_radius),
-+                            topEnd = dimensionResource(id = R.dimen.main_menu_sheet_corner_radius),
-                         ),
+-                        ),
++                    cornerShape = RoundedCornerShape(dimensionResource(id = R.dimen.main_menu_sheet_corner_radius)),
                  ) {
                      Menu(
+                         store = menuStore,
 diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuDialogBottomSheet.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuDialogBottomSheet.kt
 index 7212aa6..22f8f01 100644
 --- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuDialogBottomSheet.kt
@@ -276,10 +305,10 @@ index 7212aa6..22f8f01 100644
              if (menuHandleState.visible) {
 diff --git a/mobile/android/fenix/app/src/main/res/drawable/main_menu_sheet_background.xml b/mobile/android/fenix/app/src/main/res/drawable/main_menu_sheet_background.xml
 new file mode 100644
-index 0000000..0e7ab86
+index 0000000..ace9d56
 --- /dev/null
 +++ b/mobile/android/fenix/app/src/main/res/drawable/main_menu_sheet_background.xml
-@@ -0,0 +1,12 @@
+@@ -0,0 +1,10 @@
 +<?xml version="1.0" encoding="utf-8"?>
 +<!-- This Source Code Form is subject to the terms of the Mozilla Public
 +   - License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -287,25 +316,25 @@ index 0000000..0e7ab86
 +
 +<shape xmlns:android="http://schemas.android.com/apk/res/android"
 +    android:shape="rectangle">
-+    <corners
-+        android:topLeftRadius="@dimen/main_menu_sheet_corner_radius"
-+        android:topRightRadius="@dimen/main_menu_sheet_corner_radius" />
++    <corners android:radius="@dimen/main_menu_sheet_corner_radius" />
 +    <solid android:color="?attr/colorSurface" />
 +</shape>
 diff --git a/mobile/android/fenix/app/src/main/res/values/dimens.xml b/mobile/android/fenix/app/src/main/res/values/dimens.xml
-index 0d898d8..a247069 100644
+index 0d898d8..b14c4f2 100644
 --- a/mobile/android/fenix/app/src/main/res/values/dimens.xml
 +++ b/mobile/android/fenix/app/src/main/res/values/dimens.xml
-@@ -57,6 +57,8 @@
+@@ -57,6 +57,10 @@
      <!-- Bottom Sheet Fragment card -->
      <dimen name="bottom_sheet_corner_radius">8dp</dimen>
      <dimen name="bottom_sheet_corner_radius_28dp">28dp</dimen>
-+    <!-- Top corner radius of the main menu sheet: read by its background drawable and by its Compose shape. -->
++    <!-- Corner radius of the main menu sheet: read by its background drawable and by its Compose shape. -->
 +    <dimen name="main_menu_sheet_corner_radius">4dp</dimen>
++    <!-- Margin between the main menu sheet and the end of the screen, and between it and the navigation bar. -->
++    <dimen name="main_menu_sheet_margin">8dp</dimen>
      <dimen name="bottom_sheet_handle_height">4dp</dimen>
      <dimen name="bottom_sheet_handle_top_margin">8dp</dimen>
  
-@@ -145,7 +147,7 @@
+@@ -145,7 +149,7 @@
      <dimen name="tap_increase_2">2dp</dimen>
  
      <!-- Browser Menu -->
