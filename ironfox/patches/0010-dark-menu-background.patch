@@ -1,0 +1,63 @@
+diff --git a/mobile/android/android-components/components/compose/base/src/main/java/mozilla/components/compose/base/theme/AcornColors.kt b/mobile/android/android-components/components/compose/base/src/main/java/mozilla/components/compose/base/theme/AcornColors.kt
+index 931fcde..baa714b 100644
+--- a/mobile/android/android-components/components/compose/base/src/main/java/mozilla/components/compose/base/theme/AcornColors.kt
++++ b/mobile/android/android-components/components/compose/base/src/main/java/mozilla/components/compose/base/theme/AcornColors.kt
+@@ -295,7 +295,7 @@ fun acornDarkColorScheme(): ColorScheme =
+         surfaceBright = NovaColors.Gray65,
+         surfaceDim = NovaColors.Gray85,
+         surfaceContainer = NovaColors.Gray75,
+-        surfaceContainerHigh = NovaColors.Gray70,
++        surfaceContainerHigh = Color(0xFF42414D),
+         surfaceContainerHighest = NovaColors.Gray65,
+         surfaceContainerLow = NovaColors.Gray80,
+         surfaceContainerLowest = NovaColors.Gray85,
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuDialogBottomSheet.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuDialogBottomSheet.kt
+index 22f8f01..1a69189 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuDialogBottomSheet.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuDialogBottomSheet.kt
+@@ -53,7 +53,7 @@ fun MenuDialogBottomSheet(
+         Column(
+             modifier =
+                 Modifier.background(
+-                        color = MaterialTheme.colorScheme.surface,
++                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                         shape = cornerShape,
+                     )
+                     // Without the handle row nothing keeps the content (for example the header that turns darker
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuNavigation.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuNavigation.kt
+index 86f92c9..010301d 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuNavigation.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuNavigation.kt
+@@ -196,7 +196,7 @@ internal fun MenuNavigation(
+                         if (isExtensionsExpanded || isMoreMenuExpanded) {
+                             MaterialTheme.colorScheme.surfaceContainerHigh
+                         } else {
+-                            MaterialTheme.colorScheme.surface
++                            MaterialTheme.colorScheme.surfaceContainerHigh
+                         }
+                 )
+                 .semantics(mergeDescendants = true) {
+diff --git a/mobile/android/fenix/app/src/main/res/drawable/main_menu_sheet_background.xml b/mobile/android/fenix/app/src/main/res/drawable/main_menu_sheet_background.xml
+index ace9d56..5d5fd8a 100644
+--- a/mobile/android/fenix/app/src/main/res/drawable/main_menu_sheet_background.xml
++++ b/mobile/android/fenix/app/src/main/res/drawable/main_menu_sheet_background.xml
+@@ -6,5 +6,5 @@
+ <shape xmlns:android="http://schemas.android.com/apk/res/android"
+     android:shape="rectangle">
+     <corners android:radius="@dimen/main_menu_sheet_corner_radius" />
+-    <solid android:color="?attr/colorSurface" />
++    <solid android:color="?attr/colorSurfaceContainerHigh" />
+ </shape>
+diff --git a/mobile/android/fenix/app/src/main/res/values-night/colors.xml b/mobile/android/fenix/app/src/main/res/values-night/colors.xml
+index af1f96f..b2bc81b 100644
+--- a/mobile/android/fenix/app/src/main/res/values-night/colors.xml
++++ b/mobile/android/fenix/app/src/main/res/values-night/colors.xml
+@@ -47,7 +47,7 @@
+     <color name="fx_mobile_surface_bright">@color/novaGray65</color>
+     <color name="fx_mobile_surface_dim">@color/novaGray85</color>
+     <color name="fx_mobile_surface_container">@color/novaGray75</color>
+-    <color name="fx_mobile_surface_container_high">@color/novaGray70</color>
++    <color name="fx_mobile_surface_container_high">#FF42414D</color>
+     <color name="fx_mobile_surface_container_highest">@color/novaGray65</color>
+     <color name="fx_mobile_surface_container_low">@color/novaGray80</color>
+     <color name="fx_mobile_surface_container_lowest">@color/novaGray85</color>
