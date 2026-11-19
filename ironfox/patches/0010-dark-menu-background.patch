@@ -48,16 +48,3 @@ index ace9d56..5d5fd8a 100644
 -    <solid android:color="?attr/colorSurface" />
 +    <solid android:color="?attr/colorSurfaceContainerHigh" />
  </shape>
-diff --git a/mobile/android/fenix/app/src/main/res/values-night/colors.xml b/mobile/android/fenix/app/src/main/res/values-night/colors.xml
-index af1f96f..b2bc81b 100644
---- a/mobile/android/fenix/app/src/main/res/values-night/colors.xml
-+++ b/mobile/android/fenix/app/src/main/res/values-night/colors.xml
-@@ -47,7 +47,7 @@
-     <color name="fx_mobile_surface_bright">@color/novaGray65</color>
-     <color name="fx_mobile_surface_dim">@color/novaGray85</color>
-     <color name="fx_mobile_surface_container">@color/novaGray75</color>
--    <color name="fx_mobile_surface_container_high">@color/novaGray70</color>
-+    <color name="fx_mobile_surface_container_high">#FF42414D</color>
-     <color name="fx_mobile_surface_container_highest">@color/novaGray65</color>
-     <color name="fx_mobile_surface_container_low">@color/novaGray80</color>
-     <color name="fx_mobile_surface_container_lowest">@color/novaGray85</color>
