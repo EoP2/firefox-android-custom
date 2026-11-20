@@ -43,9 +43,9 @@
 #     ANDROID_KEY_PASSWORD      密钥口令
 #
 # 说明与限制：
-#   * 补丁部分没有在 GitHub 上实跑过：在 Firefox 160.0 的 mobile/android 源码上，先按 IronFox 的顺序套上它自己的
-#     补丁，再验证你的 7 个补丁（--fuzz=0 下单独、依次、拿掉任意一个都能套上）；环境变量用它的 env.sh 校验过；
-#     但拆开后的 prebuild 流程没有在 Actions 上完整跑通，也没有编译过。
+#   * 补丁部分没有在 GitHub 上实跑过：在 Firefox 160.0.1 的 mobile/android 源码上（160.0 上也验证过，补丁文件没变），
+#     先按 IronFox 的顺序套上它自己的补丁，再验证你的 8 个补丁（--fuzz=0 下单独、依次、拿掉任意一个都能套上）；
+#     环境变量用它的 env.sh 校验过；但拆开后的 prebuild 流程没有在 Actions 上完整跑通，也没有编译过。
 #   * 官方 CI 里同一步（build-fenix）在 32 核机器上用了约 1 小时 7 分；标准 runner 只有 4 核（私有仓库 2 核），
 #     粗估 3~6 小时，可能超过 6 小时上限。第一次请先看耗时。
 #   * bootstrap.sh 的 Ubuntu 分支带着没有 -y 的 apt upgrade，并且装的是 Python 版 yq（输出带引号，
@@ -67,13 +67,13 @@ on:
     inputs:
       ironfox_ref:
         description: "IronFox 的 tag（GitHub 镜像上的）"
-        default: "v160.0"
+        default: "v160.0.1"
       expected_commit:
         description: "期望的提交 SHA，不一致就中止（对应下面流水线页面显示的提交；留空 = 不检查）"
-        default: "ffa6df3ada288c407521045708bc84ded27b0a5c"
+        default: "e80a40fc960acb5eee7d60071254764f5bc2e51b"
       pipeline_id:
         description: "IronFox 官方 CI 的流水线 ID（GeckoView 从 artifacts.ironfoxoss.org/ironfox/<ID>/ 下载）"
-        default: "3053053254"
+        default: "3083165820"
       channel:
         description: "构建渠道：release / nightly / auto（auto = 按 AAR 里检测到的渠道）"
         type: choice
