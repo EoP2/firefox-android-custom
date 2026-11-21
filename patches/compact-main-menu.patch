@@ -1,0 +1,16 @@
+diff --git a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuItem.kt b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuItem.kt
+index 26d1f790..0ba47d43 100644
+--- a/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuItem.kt
++++ b/mobile/android/fenix/app/src/main/java/org/mozilla/fenix/components/menu/compose/MenuItem.kt
+@@ -62,9 +62,9 @@ import org.mozilla.fenix.compose.list.TextListItem
+ import org.mozilla.fenix.theme.FirefoxTheme
+ import org.mozilla.fenix.utils.DURATION_MS_MAIN_MENU_ITEM
+ 
+-private val MENU_ITEM_HEIGHT_WITHOUT_DESC = 52.dp
++private val MENU_ITEM_HEIGHT_WITHOUT_DESC = 44.dp
+ 
+-private val MENU_ITEM_HEIGHT_WITH_DESC = 56.dp
++private val MENU_ITEM_HEIGHT_WITH_DESC = 48.dp
+ 
+ /**
+  * An [IconListItem] wrapper for menu items in a [MenuGroup] with an optional icon at the end.
