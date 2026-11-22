@@ -27,7 +27,7 @@ on:
   workflow_dispatch:
     inputs:
       upstream_ref:
-        description: "上游正式版 tag；出新版本后改成新的，例如 FIREFOX_161_0_RELEASE"
+        description: "上游正式版 tag；出新版本后改成新的，例如 FIREFOX_161_0_1_RELEASE"
         default: "FIREFOX_160_0_RELEASE"
 
 env:
