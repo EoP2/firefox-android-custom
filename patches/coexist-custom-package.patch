@@ -7,7 +7,7 @@ index 03399d00..0ee6f90d 100644
          release releaseTemplate >> {
              buildConfigField "boolean", "USE_RELEASE_VERSIONING", "true"
 -            applicationIdSuffix ".firefox"
-+            applicationIdSuffix ".firefox_custom"
++            applicationIdSuffix ".fenix"
              def deepLinkSchemeValue = "fenix"
              buildConfigField "String", "DEEP_LINK_SCHEME", "\"$deepLinkSchemeValue\""
              manifestPlaceholders.putAll([
